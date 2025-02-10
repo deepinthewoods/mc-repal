@@ -1,0 +1,54 @@
+{
+	"schemaVersion": 1,
+	"id": "repal",
+	"version": "${version}",
+	"name": "Repal",
+	"description": "A mod for recoloring Minecraft textures using custom palettes",
+	"authors": [
+		"trek"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/trek/repal"
+	},
+	"license": "MIT",
+	"icon": "assets/repal/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"ninja.trek.Repal"
+		],
+		"client": [
+			"ninja.trek.RepalClient"
+		],
+		"modmenu": [
+			"ninja.trek.config.RepalModMenu"
+		],
+		"fabric-datagen": [
+			"ninja.trek.RepalDataGenerator"
+		]
+	},
+	"mixins": [
+		"repal.mixins.json",
+		{
+			"config": "repal.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.14.21",
+		"minecraft": "~1.21",
+		"java": ">=17",
+		"fabric-api": "*",
+		"cloth-config": ">=15.0.140",
+		"modmenu": ">=11.0.3"
+	},
+	"custom": {
+		"modmenu": {
+			"links": {
+				"modmenu.discord": "https://discord.gg/fabric",
+				"modmenu.issues": "https://github.com/trek/repal/issues"
+			}
+		}
+	}
+}

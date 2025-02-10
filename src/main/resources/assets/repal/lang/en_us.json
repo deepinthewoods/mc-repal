@@ -1,0 +1,16 @@
+{
+  "repal.config.title": "Repal Settings",
+  "repal.config.contrast": "Pre-Contrast: %d",
+  "repal.config.saturation": "Pre-Saturation: %d",
+  "repal.config.palette": "Palette: %d",
+  "repal.config.process": "Process Textures",
+  "repal.preview.original": "Original",
+  "repal.preview.processed": "Processed",
+  "repal.status.processing": "Processing textures...",
+  "repal.status.complete": "Resource pack generated: %s",
+  "repal.status.failed": "Failed to generate resource pack",
+  "repal.tooltip.contrast": "Adjusts contrast before palette mapping (-100 to 100)",
+  "repal.tooltip.saturation": "Adjusts saturation before palette mapping (-100 to 100)",
+  "repal.tooltip.palette": "Select palette to use for recoloring",
+  "repal.tooltip.process": "Generate a new resource pack with recolored textures"
+}
