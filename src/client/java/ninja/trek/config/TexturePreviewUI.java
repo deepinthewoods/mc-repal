@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class TexturePreviewUI {
     private final RepalModMenu.MergedConfigScreen parent;
@@ -74,19 +75,19 @@ public class TexturePreviewUI {
 
     public void updateTextureList() {
         Repal.LOGGER.debug("Starting updateTextureList");
-
         if (currentTextures == null) {
             currentTextures = new ArrayList<>();
         } else {
             currentTextures.clear();
         }
 
+        // Only show textures for the current layer
         LayerInfo layer = LayerManager.getInstance().getLayer(currentLayerId);
         if (layer != null) {
             Set<Identifier> layerTextures = layer.getTextures();
             if (layerTextures != null && !layerTextures.isEmpty()) {
                 currentTextures.addAll(layerTextures);
-                Repal.LOGGER.info("Updated texture list from layer '{}': {} textures",
+                Repal.LOGGER.info("Updated texture list for layer '{}': {} textures",
                         layer.getName(), currentTextures.size());
             }
         }
@@ -148,7 +149,14 @@ public class TexturePreviewUI {
     }
 
     public void render(DrawContext context, int mouseX, int mouseY) {
-        if (currentTextures == null || currentTextures.isEmpty()) {
+        LayerInfo currentLayer = LayerManager.getInstance().getLayer(currentLayerId);
+        if (currentLayer == null) {
+            Repal.LOGGER.warn("No layer available for preview rendering");
+            return;
+        }
+
+        // Only show textures that belong to the current layer
+        if (currentTextures == null || !currentTextures.stream().anyMatch(texture -> currentLayer.getTextures().contains(texture))) {
             // Render "No textures in this layer" message
             String message = "No textures in this layer";
             int textWidth = client.textRenderer.getWidth(message);
@@ -164,37 +172,56 @@ public class TexturePreviewUI {
             return;
         }
 
-        LayerInfo currentLayer = LayerManager.getInstance().getLayer(currentLayerId);
-        if (currentLayer == null) {
-            Repal.LOGGER.warn("No layer available for preview rendering");
-            return;
-        }
-
         renderTexturesGrid(context, mouseX, mouseY, currentLayer);
     }
 
     private void renderTexturesGrid(DrawContext context, int mouseX, int mouseY, LayerInfo layer) {
+        // Filter textures to only show ones from the current layer
+        List<Identifier> layerTextures = currentTextures.stream()
+                .filter(texture -> layer.getTextures().contains(texture))
+                .collect(Collectors.toList());
+
+        // Calculate layout dimensions
         int availableWidth = areaWidth - 2 * PADDING;
         int totalPreviewWidth = PREVIEW_SIZE * 2 + SPACING_BETWEEN_PREVIEWS;
         columnsPerRow = Math.max(1, availableWidth / (totalPreviewWidth + PREVIEW_SPACING));
 
+        // Calculate starting positions
         int x = areaX + PADDING;
         int y = areaY;
+
+        // Calculate visible area
         int visibleRows = (areaHeight - 20) / (PREVIEW_SIZE + PREVIEW_SPACING);
         int startIndex = currentScrollRow * columnsPerRow;
-        int endIndex = Math.min(startIndex + (visibleRows * columnsPerRow), currentTextures.size());
+        int endIndex = Math.min(startIndex + (visibleRows * columnsPerRow), layerTextures.size());
 
+        // Render each texture in the grid
         for (int i = startIndex; i < endIndex; i++) {
-            if (i >= currentTextures.size()) break;
+            if (i >= layerTextures.size()) break;
 
-            Identifier texture = currentTextures.get(i);
+            Identifier texture = layerTextures.get(i);
             int col = (i - startIndex) % columnsPerRow;
             int row = (i - startIndex) / columnsPerRow;
+
+            // Calculate position for this texture preview
             int baseX = x + col * (totalPreviewWidth + PREVIEW_SPACING);
             int previewY = y + row * (PREVIEW_SIZE + PREVIEW_SPACING);
 
-            renderTexturePreview(context, mouseX, mouseY, texture, layer, baseX, previewY, totalPreviewWidth);
+            // Render the texture preview with all its components
+            renderTexturePreview(
+                    context,
+                    mouseX,
+                    mouseY,
+                    texture,
+                    layer,
+                    baseX,
+                    previewY,
+                    totalPreviewWidth
+            );
         }
+
+        // Update scroll buttons after rendering
+        updateScrollButtons();
     }
 
     private void renderTexturePreview(DrawContext context, int mouseX, int mouseY,

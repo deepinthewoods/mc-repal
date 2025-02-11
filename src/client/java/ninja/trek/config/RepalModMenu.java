@@ -89,6 +89,7 @@ public class RepalModMenu implements ModMenuApi {
             layerUI.init();
             // Connect layer UI with preview UI
             layerUI.setTexturePreviewUI(texturePreviewUI);
+            layerUI.setConfigScreen(this);
 
             // Initialize preset management UI below the layer management
             presetUI = new PresetManagementUI(client, width - SIDE_PANEL_WIDTH, 180, SIDE_PANEL_WIDTH);
@@ -112,8 +113,7 @@ public class RepalModMenu implements ModMenuApi {
                     .build();
             addDrawableChild(processButton);
 
-            texturePreviewUI = new TexturePreviewUI(this, client, previewAreaX, previewsStartY, previewAreaWidth, previewAreaHeight);
-            texturePreviewUI.init();
+
 
             // Add additional UI elements (layer and preset buttons)
             addDrawableChildren();
@@ -143,6 +143,44 @@ public class RepalModMenu implements ModMenuApi {
             if (paletteEntry != null && !Objects.equals(paletteEntry.getValue(), activeLayer.getPalette())) {
                 paletteChanged = true;
                 activeLayer.setPalette(paletteEntry.getValue());
+            }
+        }
+
+        /**
+         * Updates the slider and dropdown values when switching between layers.
+         * This method is called from LayerManagementUI when the active layer changes.
+         */
+        // In RepalModMenu.java, replace the updateSliderValues method with:
+
+        // In RepalModMenu.java, replace the updateSliderValues method with:
+
+        // In RepalModMenu.java, replace the updateSliderValues method with:
+
+        public void updateSliderValues(LayerInfo layer) {
+            if (layer == null) return;
+
+            // Update slider entries
+            if (contrastEntry != null) {
+                contrastEntry.setValue(layer.getContrast());
+            }
+            if (saturationEntry != null) {
+                saturationEntry.setValue(layer.getSaturation());
+            }
+
+            // Calculate the same width as used in the initial initialization
+            int mainWidth = width - SIDE_PANEL_WIDTH - UI_SPACING;
+
+            // Reinitialize the config UI with the correct width
+            initializeConfigUI(0, 0, mainWidth);
+
+            // Update last known values to match the new layer
+            lastContrast = layer.getContrast();
+            lastSaturation = layer.getSaturation();
+            lastPalette = layer.getPalette();
+
+            // Now reinitialize the cloth config screen with the correct width
+            if (clothConfigScreen != null) {
+                clothConfigScreen.init(client, mainWidth, height);
             }
         }
 

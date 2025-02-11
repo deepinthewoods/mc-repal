@@ -9,7 +9,6 @@ import ninja.trek.LayerManager;
 import ninja.trek.TextureManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
-
 import java.util.*;
 
 public class LayerManagementUI {
@@ -19,16 +18,18 @@ public class LayerManagementUI {
     private final int width;
     private ButtonWidget newLayerButton;
     private ButtonWidget deleteLayerButton;
-    private ButtonWidget moveToLayerButton;
+    private ButtonWidget moveButton;
+    private ButtonWidget destinationButton;
     private ButtonWidget cycleLayerButton;
     private TextFieldWidget layerNameField;
     private List<LayerInfo> layers;
     private int selectedLayerIndex = 0;
+    private int destinationLayerIndex = 0;
     private TexturePreviewUI texturePreviewUI;
-
     private static final int BUTTON_HEIGHT = 20;
     private static final int BUTTON_SPACING = 4;
     private static final int FIELD_HEIGHT = 20;
+    private RepalModMenu.MergedConfigScreen configScreen;
 
     public LayerManagementUI(MinecraftClient client, int x, int y, int width) {
         this.client = client;
@@ -38,9 +39,12 @@ public class LayerManagementUI {
         this.layers = LayerManager.getInstance().getAllLayers();
     }
 
+    public void setConfigScreen(RepalModMenu.MergedConfigScreen screen) {
+        this.configScreen = screen;
+    }
+
     public void setTexturePreviewUI(TexturePreviewUI texturePreviewUI) {
         this.texturePreviewUI = texturePreviewUI;
-        // Initialize with current layer
         if (texturePreviewUI != null && !layers.isEmpty()) {
             texturePreviewUI.setCurrentLayer(layers.get(selectedLayerIndex).getId());
         }
@@ -61,30 +65,33 @@ public class LayerManagementUI {
         );
         layerNameField.setMaxLength(32);
         updateLayerNameField();
-
         currentY += FIELD_HEIGHT + BUTTON_SPACING;
 
         // New and Delete layer buttons
         newLayerButton = ButtonWidget.builder(Text.translatable("repal.layer.new"), this::onNewLayerClick)
                 .dimensions(x, currentY, halfWidth, BUTTON_HEIGHT)
                 .build();
-
         deleteLayerButton = ButtonWidget.builder(Text.translatable("repal.layer.delete"), this::onDeleteLayerClick)
                 .dimensions(x + halfWidth + BUTTON_SPACING, currentY, halfWidth, BUTTON_HEIGHT)
                 .build();
-
         currentY += BUTTON_HEIGHT + BUTTON_SPACING;
 
-        // Move to layer and cycle layer buttons
-        moveToLayerButton = ButtonWidget.builder(Text.translatable("repal.layer.move"), this::onMoveToLayerClick)
-                .dimensions(x, currentY, halfWidth, BUTTON_HEIGHT)
+        // Move controls and layer cycling (3 equal width buttons)
+        int thirdWidth = (width - 2 * BUTTON_SPACING) / 3;
+        moveButton = ButtonWidget.builder(Text.literal("Move"), this::onMoveClick)
+                .dimensions(x, currentY, thirdWidth, BUTTON_HEIGHT)
+                .build();
+
+        destinationButton = ButtonWidget.builder(Text.literal("To: Default"), this::onDestinationClick)
+                .dimensions(x + thirdWidth + BUTTON_SPACING, currentY, thirdWidth, BUTTON_HEIGHT)
                 .build();
 
         cycleLayerButton = ButtonWidget.builder(Text.translatable("repal.layer.cycle"), this::onCycleLayerClick)
-                .dimensions(x + halfWidth + BUTTON_SPACING, currentY, halfWidth, BUTTON_HEIGHT)
+                .dimensions(x + 2 * (thirdWidth + BUTTON_SPACING), currentY, thirdWidth, BUTTON_HEIGHT)
                 .build();
 
         updateButtonStates();
+        updateDestinationButton();
     }
 
     private void updateLayerNameField() {
@@ -97,13 +104,99 @@ public class LayerManagementUI {
 
     private void updateButtonStates() {
         boolean hasLayers = !layers.isEmpty();
-        boolean hasSelectedTextures = !TextureManager.getSelectedTextures().isEmpty();
         boolean canDeleteLayer = hasLayers && layers.size() > 1;
 
         deleteLayerButton.active = canDeleteLayer;
-        moveToLayerButton.active = hasSelectedTextures && hasLayers;
+        moveButton.active = true; // Move button is always enabled since invalid selections aren't possible
+        destinationButton.active = hasLayers && layers.size() > 1;
         cycleLayerButton.active = hasLayers;
         layerNameField.setEditable(hasLayers);
+    }
+
+    private void updateDestinationButton() {
+        if (!layers.isEmpty()) {
+            LayerInfo destLayer = layers.get(destinationLayerIndex);
+            destinationButton.setMessage(Text.literal("To: " + destLayer.getName()));
+        }
+    }
+
+    private void onDestinationClick(ButtonWidget button) {
+        if (layers.isEmpty() || layers.size() <= 1) return;
+
+        do {
+            destinationLayerIndex = (destinationLayerIndex + 1) % layers.size();
+        } while (destinationLayerIndex == selectedLayerIndex);
+
+        updateDestinationButton();
+    }
+
+    private void onMoveClick(ButtonWidget button) {
+        if (layers.isEmpty()) return;
+
+        Set<Identifier> selectedTextures = TextureManager.getSelectedTextures();
+        if (!selectedTextures.isEmpty()) {
+            LayerInfo targetLayer = layers.get(destinationLayerIndex);
+            TextureManager.moveSelectedTexturesToLayer(targetLayer);
+
+            // Update UI after move
+            if (texturePreviewUI != null) {
+                texturePreviewUI.updateTextureList();
+            }
+            updateButtonStates();
+        }
+    }
+
+    private void onNewLayerClick(ButtonWidget button) {
+        String name = "Layer " + (layers.size() + 1);
+        LayerInfo newLayer = LayerManager.getInstance().createLayer(name);
+        layers = LayerManager.getInstance().getAllLayers();
+
+        // Stay on current layer, just update the destination to the new layer
+        destinationLayerIndex = layers.indexOf(newLayer);
+
+        updateButtonStates();
+        updateDestinationButton();
+    }
+
+    private void onDeleteLayerClick(ButtonWidget button) {
+        if (layers.size() <= 1) return;
+
+        LayerInfo layerToDelete = layers.get(selectedLayerIndex);
+        LayerManager.getInstance().deleteLayer(layerToDelete.getId());
+        layers = LayerManager.getInstance().getAllLayers();
+        selectedLayerIndex = Math.min(selectedLayerIndex, layers.size() - 1);
+
+        // Reset destination layer after deletion
+        destinationLayerIndex = 0;
+        if (destinationLayerIndex == selectedLayerIndex && layers.size() > 1) {
+            destinationLayerIndex = 1;
+        }
+
+        updateLayerNameField();
+        updateButtonStates();
+        updateDestinationButton();
+        notifyLayerChange(layers.get(selectedLayerIndex));
+    }
+
+    private void onCycleLayerClick(ButtonWidget button) {
+        if (layers.isEmpty()) return;
+
+        selectedLayerIndex = (selectedLayerIndex + 1) % layers.size();
+        LayerInfo newLayer = layers.get(selectedLayerIndex);
+
+        // Clear selections when changing layers
+        TextureManager.clearSelection();
+
+        // Reset destination layer when changing current layer
+        destinationLayerIndex = 0;
+        if (destinationLayerIndex == selectedLayerIndex && layers.size() > 1) {
+            destinationLayerIndex = 1;
+        }
+
+        updateLayerNameField();
+        updateButtonStates();
+        updateDestinationButton();
+        notifyLayerChange(newLayer);
     }
 
     private void notifyLayerChange(LayerInfo newLayer) {
@@ -111,19 +204,20 @@ public class LayerManagementUI {
             texturePreviewUI.setCurrentLayer(newLayer.getId());
         }
         LayerManager.getInstance().setActiveLayer(newLayer.getId());
+        // Add this line:
+        if (configScreen != null) {
+            configScreen.updateSliderValues(newLayer);
+        }
     }
 
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Draw layer name field
         layerNameField.render(context, mouseX, mouseY, delta);
-
-        // Draw buttons
         newLayerButton.render(context, mouseX, mouseY, delta);
         deleteLayerButton.render(context, mouseX, mouseY, delta);
-        moveToLayerButton.render(context, mouseX, mouseY, delta);
+        moveButton.render(context, mouseX, mouseY, delta);
+        destinationButton.render(context, mouseX, mouseY, delta);
         cycleLayerButton.render(context, mouseX, mouseY, delta);
 
-        // Draw layer info
         if (!layers.isEmpty()) {
             LayerInfo currentLayer = layers.get(selectedLayerIndex);
             String info = String.format("%d/%d: %s (%d textures)",
@@ -142,49 +236,6 @@ public class LayerManagementUI {
         }
     }
 
-    private void onNewLayerClick(ButtonWidget button) {
-        String name = "Layer " + (layers.size() + 1);
-        LayerInfo newLayer = LayerManager.getInstance().createLayer(name);
-        layers = LayerManager.getInstance().getAllLayers();
-        selectedLayerIndex = layers.indexOf(newLayer);
-        updateLayerNameField();
-        updateButtonStates();
-        notifyLayerChange(newLayer);
-    }
-
-    private void onDeleteLayerClick(ButtonWidget button) {
-        if (layers.size() <= 1) return;
-        LayerInfo layerToDelete = layers.get(selectedLayerIndex);
-        LayerManager.getInstance().deleteLayer(layerToDelete.getId());
-        layers = LayerManager.getInstance().getAllLayers();
-        selectedLayerIndex = Math.min(selectedLayerIndex, layers.size() - 1);
-        updateLayerNameField();
-        updateButtonStates();
-        notifyLayerChange(layers.get(selectedLayerIndex));
-    }
-
-    private void onMoveToLayerClick(ButtonWidget button) {
-        Set<Identifier> selectedTextures = TextureManager.getSelectedTextures();
-        if (selectedTextures.isEmpty() || layers.isEmpty()) return;
-        LayerInfo targetLayer = layers.get(selectedLayerIndex);
-        TextureManager.moveSelectedTexturesToLayer(targetLayer);
-        updateButtonStates();
-
-        // Update preview after moving textures
-        if (texturePreviewUI != null) {
-            texturePreviewUI.updateTextureList();
-        }
-    }
-
-    private void onCycleLayerClick(ButtonWidget button) {
-        if (layers.isEmpty()) return;
-        selectedLayerIndex = (selectedLayerIndex + 1) % layers.size();
-        LayerInfo newLayer = layers.get(selectedLayerIndex);
-        updateLayerNameField();
-        updateButtonStates();
-        notifyLayerChange(newLayer);
-    }
-
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         return layerNameField.mouseClicked(mouseX, mouseY, button);
     }
@@ -196,6 +247,7 @@ public class LayerManagementUI {
                 LayerInfo currentLayer = layers.get(selectedLayerIndex);
                 currentLayer.setName(newName);
                 layerNameField.setFocused(false);
+                updateDestinationButton(); // Update destination button in case it shows the renamed layer
                 return true;
             }
         }
@@ -210,7 +262,8 @@ public class LayerManagementUI {
         return Arrays.asList(
                 newLayerButton,
                 deleteLayerButton,
-                moveToLayerButton,
+                moveButton,
+                destinationButton,
                 cycleLayerButton
         );
     }

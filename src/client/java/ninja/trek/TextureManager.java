@@ -160,10 +160,18 @@ public class TextureManager {
             return;
         }
 
+        // Get current layer before move
+        LayerInfo currentLayer = LayerManager.getInstance().getActiveLayer();
+
         // Remove selected textures from all other layers
         LayerManager.getInstance().getAllLayers().forEach(layer -> {
             if (!layer.getId().equals(targetLayer.getId())) {
-                selectedTextures.forEach(layer::removeTexture);
+                Set<Identifier> layerTextures = new HashSet<>(layer.getTextures());
+                selectedTextures.forEach(texture -> {
+                    if (layerTextures.contains(texture)) {
+                        layer.removeTexture(texture);
+                    }
+                });
             }
         });
 
@@ -172,5 +180,9 @@ public class TextureManager {
 
         // Clear selection after move
         clearSelection();
+
+        // Force a texture cache update for affected layers
+        ProcessedTextureCache.clearLayerCache(currentLayer.getId());
+        ProcessedTextureCache.clearLayerCache(targetLayer.getId());
     }
 }
