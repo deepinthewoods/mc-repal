@@ -14,12 +14,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
-import ninja.trek.Repal;
-import ninja.trek.RepalClient;
-import ninja.trek.ImageProcessor;
-import ninja.trek.RepalResourceReloadListener;
-import ninja.trek.TextureManager;
-import ninja.trek.PaletteInfo;
+import ninja.trek.*;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -49,10 +44,13 @@ public class RepalModMenu implements ModMenuApi {
 
         // New fields for texture preview list
         private static final int PREVIEW_SIZE = 64;
-        private static final int PREVIEW_SPACING = 12;
+        private static final int PREVIEW_SPACING = 16;
         private static final int CONFIG_HEIGHT = 200; // Height needed for config UI
         private static final int PREVIEWS_START_Y = CONFIG_HEIGHT + 20; // Starting Y position after the search box
         private int previewScrollOffset = 0;
+        // Dynamic grid layout
+        private int columnsPerRow;
+        private int currentScrollRow = 0;
         private ButtonWidget scrollUpButton;
         private ButtonWidget scrollDownButton;
         private List<Identifier> currentTextures;
@@ -62,8 +60,8 @@ public class RepalModMenu implements ModMenuApi {
             this.parent = parent;
         }
 
-        @Override
-        protected void init() {
+
+        protected void initializeConfigUI() {
             // Build the Cloth Config UI first
             ConfigBuilder builder = ConfigBuilder.create()
                     .setParentScreen(this)
@@ -159,24 +157,187 @@ public class RepalModMenu implements ModMenuApi {
             int availableHeight = height - PREVIEWS_START_Y - 20; // Leave space at bottom
             int maxPreviewsVisible = availableHeight / (PREVIEW_SIZE + PREVIEW_SPACING);
 
+
+
+
+        }
+
+        @Override
+        protected void init() {
+            // Initialize the config UI components (keeping existing config initialization code)
+            initializeConfigUI();
+
+            // Calculate dynamic grid layout
+            calculateGridLayout();
+
             // Initialize texture list
             currentTextures = TextureManager.getBlockTextures();
 
-            // Add scroll buttons
-            scrollUpButton = ButtonWidget.builder(Text.literal("▲"), button -> {
-                        if (previewScrollOffset > 0) previewScrollOffset--;
-                    })
-                    .dimensions(width - 30, PREVIEWS_START_Y, 20, 20)
-                    .build();
+            // Add scroll buttons with updated positioning
+            int buttonWidth = 60;
+            scrollUpButton = ButtonWidget.builder(Text.literal("▲ Up"), button -> {
+                if (currentScrollRow > 0) currentScrollRow--;
+            }).dimensions(width / 2 - buttonWidth - 5, PREVIEWS_START_Y - 20, buttonWidth, 20).build();
 
-            scrollDownButton = ButtonWidget.builder(Text.literal("▼"), button -> {
-                        if (previewScrollOffset < currentTextures.size() - maxPreviewsVisible) previewScrollOffset++;
-                    })
-                    .dimensions(width - 30, height - 40, 20, 20)
-                    .build();
+            scrollDownButton = ButtonWidget.builder(Text.literal("Down ▼"), button -> {
+                int maxRows = (int) Math.ceil((double) currentTextures.size() / columnsPerRow);
+                int visibleRows = (height - PREVIEWS_START_Y - 20) / (PREVIEW_SIZE + PREVIEW_SPACING);
+                if (currentScrollRow < maxRows - visibleRows) currentScrollRow++;
+            }).dimensions(width / 2 + 5, PREVIEWS_START_Y - 20, buttonWidth, 20).build();
 
             addDrawableChild(scrollUpButton);
             addDrawableChild(scrollDownButton);
+        }
+
+        private void calculateGridLayout() {
+            // Calculate number of columns based on screen width
+            int availableWidth = width - 40; // 20px padding on each side
+            columnsPerRow = Math.max(1, availableWidth / (PREVIEW_SIZE + PREVIEW_SPACING));
+        }
+
+        @Override
+        public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+            // Render config UI
+            if (clothConfigScreen != null) {
+                clothConfigScreen.render(context, mouseX, mouseY, delta);
+            }
+
+            // Render texture search
+            textureSearch.render(context, mouseX, mouseY, delta);
+
+            // Calculate grid layout
+            int startX = (width - (columnsPerRow * (PREVIEW_SIZE + PREVIEW_SPACING))) / 2;
+            int visibleRows = (height - PREVIEWS_START_Y - 20) / (PREVIEW_SIZE + PREVIEW_SPACING);
+
+            // Draw grid headers
+            context.drawCenteredTextWithShadow(
+                    textRenderer,
+                    Text.translatable("repal.search.label"),
+                    width / 2,
+                    PREVIEWS_START_Y - 30,
+                    0xFFFFFF
+            );
+
+            // Render texture grid
+            for (int row = 0; row < visibleRows; row++) {
+                int currentRow = row + currentScrollRow;
+                for (int col = 0; col < columnsPerRow; col++) {
+                    int index = (currentRow * columnsPerRow) + col;
+                    if (index >= currentTextures.size()) break;
+
+                    Identifier texture = currentTextures.get(index);
+                    int x = startX + (col * (PREVIEW_SIZE + PREVIEW_SPACING));
+                    int y = PREVIEWS_START_Y + (row * (PREVIEW_SIZE + PREVIEW_SPACING));
+
+                    // Draw original texture
+                    context.drawTexture(
+                            texture,
+                            x,
+                            y,
+                            0,
+                            0.0f,
+                            0.0f,
+                            PREVIEW_SIZE,
+                            PREVIEW_SIZE,
+                            PREVIEW_SIZE,
+                            PREVIEW_SIZE
+                    );
+
+                    // Draw processed version
+                    try {
+                        Identifier processedTextureId = ProcessedTextureCache.getProcessedTexture(texture);
+                        context.drawTexture(
+                                processedTextureId,
+                                x + PREVIEW_SIZE/2,
+                                y,
+                                0,
+                                0.0f,
+                                0.0f,
+                                PREVIEW_SIZE,
+                                PREVIEW_SIZE,
+                                PREVIEW_SIZE,
+                                PREVIEW_SIZE
+                        );
+                    } catch (Exception e) {
+                        Repal.LOGGER.error("Failed to draw processed texture", e);
+                        context.fill(
+                                x + PREVIEW_SIZE/2,
+                                y,
+                                x + PREVIEW_SIZE + PREVIEW_SIZE/2,
+                                y + PREVIEW_SIZE,
+                                0x80FF0000
+                        );
+                    }
+
+                    // Draw selection highlight
+                    if (texture.equals(TextureManager.getCurrentPreviewTexture())) {
+                        context.drawBorder(
+                                x - 2,
+                                y - 2,
+                                PREVIEW_SIZE * 2 + 4,
+                                PREVIEW_SIZE + 4,
+                                0xFFFFFF00
+                        );
+                    }
+
+                    // Draw texture name below previews
+                    String name = texture.getPath().substring(
+                            texture.getPath().lastIndexOf('/') + 1,
+                            texture.getPath().lastIndexOf('.')
+                    );
+                    context.drawCenteredTextWithShadow(
+                            textRenderer,
+                            Text.literal(name),
+                            x + PREVIEW_SIZE,
+                            y + PREVIEW_SIZE + 2,
+                            0xFFFFFF
+                    );
+                }
+            }
+
+            // Update scroll button states
+            int maxRows = (int) Math.ceil((double) currentTextures.size() / columnsPerRow);
+            scrollUpButton.active = currentScrollRow > 0;
+            scrollDownButton.active = currentScrollRow < maxRows - visibleRows;
+
+            // Render scroll buttons
+            scrollUpButton.render(context, mouseX, mouseY, delta);
+            scrollDownButton.render(context, mouseX, mouseY, delta);
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            // Handle clicks on texture previews
+            if (mouseY >= PREVIEWS_START_Y) {
+                int startX = (width - (columnsPerRow * (PREVIEW_SIZE + PREVIEW_SPACING))) / 2;
+                int col = (int) ((mouseX - startX) / (PREVIEW_SIZE + PREVIEW_SPACING));
+                int row = (int) ((mouseY - PREVIEWS_START_Y) / (PREVIEW_SIZE + PREVIEW_SPACING));
+
+                int index = ((row + currentScrollRow) * columnsPerRow) + col;
+                if (index >= 0 && index < currentTextures.size()) {
+                    TextureManager.setCurrentPreviewTexture(currentTextures.get(index));
+                    return true;
+                }
+            }
+
+            return super.mouseClicked(mouseX, mouseY, button);
+        }
+
+        @Override
+        public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+            if (verticalAmount != 0 && mouseY >= PREVIEWS_START_Y) {
+                int maxRows = (int) Math.ceil((double) currentTextures.size() / columnsPerRow);
+                int visibleRows = (height - PREVIEWS_START_Y - 20) / (PREVIEW_SIZE + PREVIEW_SPACING);
+
+                if (verticalAmount > 0 && currentScrollRow > 0) {
+                    currentScrollRow--;
+                    return true;
+                } else if (verticalAmount < 0 && currentScrollRow < maxRows - visibleRows) {
+                    currentScrollRow++;
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -196,27 +357,6 @@ public class RepalModMenu implements ModMenuApi {
             }
             return clothConfigScreen != null && clothConfigScreen.charTyped(chr, modifiers);
         }
-
-        @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            boolean searchHandled = textureSearch.mouseClicked(mouseX, mouseY, button);
-            if (searchHandled) {
-                setFocused(textureSearch);
-                return true;
-            }
-
-            boolean configHandled = clothConfigScreen != null && clothConfigScreen.mouseClicked(mouseX, mouseY, button);
-            if (configHandled) {
-                setFocused(null); // Let Cloth Config handle its own focus
-                return true;
-            }
-
-            return false;
-        }
-
-
-
-
 
         private void loadPreviewTexture() {
             try {
@@ -286,128 +426,20 @@ public class RepalModMenu implements ModMenuApi {
             if (currentContrast != lastContrast ||
                     currentSaturation != lastSaturation ||
                     !currentPalette.equals(lastPalette)) {
-
                 // Update RepalConfig with new values
                 RepalConfig.get().setPreContrast(currentContrast);
                 RepalConfig.get().setPreSaturation(currentSaturation);
                 RepalConfig.get().setSelectedPalette(currentPalette);
 
-                // Clear the ImageProcessor cache
+                // Clear all caches
                 ImageProcessor.clearCache();
-
-                // Force texture reload
-                if (client != null && client.getTextureManager() != null) {
-                    client.getTextureManager().destroyTexture(RepalClient.PREVIEW_TEXTURE_ID);
-                }
-
-                // Reload preview texture
-                loadPreviewTexture();
+                ProcessedTextureCache.clearCache();
 
                 // Store new values
                 lastContrast = currentContrast;
                 lastSaturation = currentSaturation;
                 lastPalette = currentPalette;
             }
-        }
-
-        @Override
-        public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-            if (clothConfigScreen != null) {
-                clothConfigScreen.render(context, mouseX, mouseY, delta);
-            }
-
-            // Render texture search box
-            textureSearch.render(context, mouseX, mouseY, delta);
-
-            // Calculate available space for previews
-            int availableHeight = height - PREVIEWS_START_Y - 40; // More bottom padding
-            int maxPreviewsVisible = availableHeight / (PREVIEW_SIZE + PREVIEW_SPACING);
-
-            // Render texture previews
-            int currentY = PREVIEWS_START_Y;
-            for (int i = 0; i < maxPreviewsVisible && (i + previewScrollOffset) < currentTextures.size(); i++) {
-                Identifier texture = currentTextures.get(i + previewScrollOffset);
-
-                // Draw original texture on the left
-                context.drawTexture(
-                        texture,
-                        width / 4 - PREVIEW_SIZE/2,
-                        currentY,
-                        0,
-                        0.0f,
-                        0.0f,
-                        PREVIEW_SIZE,
-                        PREVIEW_SIZE,
-                        PREVIEW_SIZE,
-                        PREVIEW_SIZE
-                );
-
-                // If this is the currently selected texture, also draw processed version
-                if (texture.equals(TextureManager.getCurrentPreviewTexture())) {
-                    context.drawTexture(
-                            RepalClient.PREVIEW_TEXTURE_ID,
-                            3 * width / 4 - PREVIEW_SIZE/2,
-                            currentY,
-                            0,
-                            0.0f,
-                            0.0f,
-                            PREVIEW_SIZE,
-                            PREVIEW_SIZE,
-                            PREVIEW_SIZE,
-                            PREVIEW_SIZE
-                    );
-
-                    // Draw highlight around selected texture
-                    context.drawBorder(
-                            width / 4 - PREVIEW_SIZE/2 - 2,
-                            currentY - 2,
-                            PREVIEW_SIZE + 4,
-                            PREVIEW_SIZE + 4,
-                            0xFFFFFF00
-                    );
-                }
-
-                // Draw texture name
-                String name = texture.getPath().substring(
-                        texture.getPath().lastIndexOf('/') + 1,
-                        texture.getPath().lastIndexOf('.')
-                );
-                context.drawCenteredTextWithShadow(
-                        textRenderer,
-                        Text.literal(name),
-                        width / 4,
-                        currentY + PREVIEW_SIZE + 2,
-                        0xFFFFFF
-                );
-
-                currentY += PREVIEW_SIZE + PREVIEW_SPACING;
-            }
-
-            // Update scroll button states
-            scrollUpButton.active = previewScrollOffset > 0;
-            scrollDownButton.active = previewScrollOffset < currentTextures.size() - maxPreviewsVisible;
-
-            // Draw texture search label
-            context.drawCenteredTextWithShadow(
-                    textRenderer,
-                    Text.translatable("repal.search.label"),
-                    width / 2,
-                    25,
-                    0xFFFFFF
-            );
-        }
-
-        @Override
-        public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-            // Handle mouse wheel scrolling
-            if (verticalAmount < 0 && scrollDownButton.active) {
-                previewScrollOffset++;
-                return true;
-            } else if (verticalAmount > 0 && scrollUpButton.active) {
-                previewScrollOffset--;
-                return true;
-            }
-            return false;
         }
 
 
