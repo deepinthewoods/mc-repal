@@ -76,9 +76,19 @@ public class RepalModMenu implements ModMenuApi {
             // Initialize the Cloth Config UI on the left side
             initializeConfigUI(0, 0, mainWidth);
 
+            // Initialize texture preview UI first
+            int previewsStartY = CONFIG_HEIGHT + 20;
+            int previewAreaX = 10;
+            int previewAreaWidth = mainWidth - 20;
+            int previewAreaHeight = height - previewsStartY - 20;
+            texturePreviewUI = new TexturePreviewUI(this, client, previewAreaX, previewsStartY, previewAreaWidth, previewAreaHeight);
+            texturePreviewUI.init();
+
             // Initialize layer management UI on the right side
             layerUI = new LayerManagementUI(client, width - SIDE_PANEL_WIDTH, 0, SIDE_PANEL_WIDTH);
             layerUI.init();
+            // Connect layer UI with preview UI
+            layerUI.setTexturePreviewUI(texturePreviewUI);
 
             // Initialize preset management UI below the layer management
             presetUI = new PresetManagementUI(client, width - SIDE_PANEL_WIDTH, 180, SIDE_PANEL_WIDTH);
@@ -102,11 +112,6 @@ public class RepalModMenu implements ModMenuApi {
                     .build();
             addDrawableChild(processButton);
 
-            // Initialize the texture preview UI
-            int previewsStartY = CONFIG_HEIGHT + 20;
-            int previewAreaX = 10;
-            int previewAreaWidth = mainWidth - 20;
-            int previewAreaHeight = height - previewsStartY - 20;
             texturePreviewUI = new TexturePreviewUI(this, client, previewAreaX, previewsStartY, previewAreaWidth, previewAreaHeight);
             texturePreviewUI.init();
 

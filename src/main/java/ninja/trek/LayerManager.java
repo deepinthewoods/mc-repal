@@ -3,7 +3,6 @@ package ninja.trek;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import net.minecraft.util.Identifier;
-
 import java.util.*;
 
 public class LayerManager {
@@ -15,6 +14,7 @@ public class LayerManager {
     private final Map<UUID, LayerInfo> layers;
     private UUID activeLayer;
     private static LayerManager INSTANCE;
+    private boolean isInitialized = false;
 
     private LayerManager() {
         this.layers = new HashMap<>();
@@ -22,6 +22,17 @@ public class LayerManager {
         LayerInfo defaultLayer = new LayerInfo("Default");
         this.layers.put(defaultLayer.getId(), defaultLayer);
         this.activeLayer = defaultLayer.getId();
+    }
+
+    public void initialize(Collection<Identifier> textures) {
+        if (!isInitialized && !textures.isEmpty()) {
+            LayerInfo defaultLayer = getActiveLayer();
+            if (defaultLayer != null) {
+                defaultLayer.addTextures(textures);
+                Repal.LOGGER.info("Added {} textures to default layer", textures.size());
+            }
+            isInitialized = true;
+        }
     }
 
     public static LayerManager getInstance() {
@@ -43,6 +54,14 @@ public class LayerManager {
             Repal.LOGGER.warn("Cannot delete the last remaining layer");
             return;
         }
+
+        // Move textures to default layer before deletion
+        LayerInfo layerToDelete = layers.get(id);
+        LayerInfo defaultLayer = getActiveLayer();
+        if (layerToDelete != null && defaultLayer != null && !id.equals(defaultLayer.getId())) {
+            defaultLayer.addTextures(layerToDelete.getTextures());
+        }
+
         layers.remove(id);
         if (activeLayer.equals(id)) {
             activeLayer = layers.keySet().iterator().next();
@@ -54,7 +73,9 @@ public class LayerManager {
         if (layer != null) {
             // Remove textures from all other layers first
             for (LayerInfo otherLayer : layers.values()) {
-                otherLayer.getTextures().removeAll(textures);
+                if (!otherLayer.getId().equals(targetLayer)) {
+                    textures.forEach(otherLayer::removeTexture);
+                }
             }
             // Add to target layer
             layer.addTextures(textures);
@@ -79,6 +100,15 @@ public class LayerManager {
             this.activeLayer = id;
         }
     }
+
+
+
+
+
+
+
+
+
 
     // Import/Export
     public String exportToJson() {
@@ -113,11 +143,11 @@ public class LayerManager {
         }
     }
 
-    // Clear everything
     public void reset() {
         layers.clear();
         LayerInfo defaultLayer = new LayerInfo("Default");
         layers.put(defaultLayer.getId(), defaultLayer);
         activeLayer = defaultLayer.getId();
+        isInitialized = false;
     }
 }

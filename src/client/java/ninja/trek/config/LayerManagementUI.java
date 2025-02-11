@@ -9,6 +9,7 @@ import ninja.trek.LayerManager;
 import ninja.trek.TextureManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+
 import java.util.*;
 
 public class LayerManagementUI {
@@ -23,6 +24,8 @@ public class LayerManagementUI {
     private TextFieldWidget layerNameField;
     private List<LayerInfo> layers;
     private int selectedLayerIndex = 0;
+    private TexturePreviewUI texturePreviewUI;
+
     private static final int BUTTON_HEIGHT = 20;
     private static final int BUTTON_SPACING = 4;
     private static final int FIELD_HEIGHT = 20;
@@ -33,6 +36,14 @@ public class LayerManagementUI {
         this.y = y;
         this.width = width;
         this.layers = LayerManager.getInstance().getAllLayers();
+    }
+
+    public void setTexturePreviewUI(TexturePreviewUI texturePreviewUI) {
+        this.texturePreviewUI = texturePreviewUI;
+        // Initialize with current layer
+        if (texturePreviewUI != null && !layers.isEmpty()) {
+            texturePreviewUI.setCurrentLayer(layers.get(selectedLayerIndex).getId());
+        }
     }
 
     public void init() {
@@ -95,6 +106,13 @@ public class LayerManagementUI {
         layerNameField.setEditable(hasLayers);
     }
 
+    private void notifyLayerChange(LayerInfo newLayer) {
+        if (texturePreviewUI != null && newLayer != null) {
+            texturePreviewUI.setCurrentLayer(newLayer.getId());
+        }
+        LayerManager.getInstance().setActiveLayer(newLayer.getId());
+    }
+
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         // Draw layer name field
         layerNameField.render(context, mouseX, mouseY, delta);
@@ -131,6 +149,7 @@ public class LayerManagementUI {
         selectedLayerIndex = layers.indexOf(newLayer);
         updateLayerNameField();
         updateButtonStates();
+        notifyLayerChange(newLayer);
     }
 
     private void onDeleteLayerClick(ButtonWidget button) {
@@ -141,6 +160,7 @@ public class LayerManagementUI {
         selectedLayerIndex = Math.min(selectedLayerIndex, layers.size() - 1);
         updateLayerNameField();
         updateButtonStates();
+        notifyLayerChange(layers.get(selectedLayerIndex));
     }
 
     private void onMoveToLayerClick(ButtonWidget button) {
@@ -149,14 +169,20 @@ public class LayerManagementUI {
         LayerInfo targetLayer = layers.get(selectedLayerIndex);
         TextureManager.moveSelectedTexturesToLayer(targetLayer);
         updateButtonStates();
+
+        // Update preview after moving textures
+        if (texturePreviewUI != null) {
+            texturePreviewUI.updateTextureList();
+        }
     }
 
     private void onCycleLayerClick(ButtonWidget button) {
         if (layers.isEmpty()) return;
         selectedLayerIndex = (selectedLayerIndex + 1) % layers.size();
-        LayerManager.getInstance().setActiveLayer(layers.get(selectedLayerIndex).getId());
+        LayerInfo newLayer = layers.get(selectedLayerIndex);
         updateLayerNameField();
         updateButtonStates();
+        notifyLayerChange(newLayer);
     }
 
     public boolean mouseClicked(double mouseX, double mouseY, int button) {

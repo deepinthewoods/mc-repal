@@ -35,6 +35,9 @@ public class TextureManager {
                         .collect(Collectors.toList())
         );
 
+        // Initialize LayerManager with all textures
+        LayerManager.getInstance().initialize(allBlockTextures);
+
         // Update layer textures after reload
         LayerManager layerManager = LayerManager.getInstance();
         for (LayerInfo layer : layerManager.getAllLayers()) {
