@@ -37,10 +37,11 @@ public class TextureComboBox extends TextFieldWidget {
     }
 
     private void onTextChanged(String newText) {
-        if (isFocused()) {
-            Repal.LOGGER.info("Text changed to: " + newText);
-            updateSuggestions();
-        }
+        Repal.LOGGER.info("Text changed to: " + newText);
+        updateSuggestions();
+        // Reset selection when text changes
+        selectedSuggestion = -1;
+        isDropdownVisible = true;
     }
 
     @Override

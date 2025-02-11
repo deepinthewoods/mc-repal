@@ -56,9 +56,9 @@ public class RepalModMenu implements ModMenuApi {
 
         @Override
         protected void init() {
-            if (initialized) {
-                return;
-            }
+//            if (initialized) {
+////                return;
+//            }
             initialized = true;
             // Build the Cloth Config UI first
             ConfigBuilder builder = ConfigBuilder.create()
@@ -96,16 +96,31 @@ public class RepalModMenu implements ModMenuApi {
             general.addEntry(saturationSliderEntry);
 
 
+            // Get available palettes
+            List<String> availablePaletteNames = RepalResourceReloadListener.getAvailablePalettes()
+                    .stream()
+                    .map(PaletteInfo::getName)
+                    .collect(Collectors.toList());
 
+            // If no palettes available, add a default one
+            if (availablePaletteNames.isEmpty()) {
+                availablePaletteNames.add("pal1");
+            }
 
-// Create your dropdown entry
+            // Get current selected palette, fallback to first available if current is invalid
+            String currentPalette = RepalConfig.get().selectedPalette();
+            if (!availablePaletteNames.contains(currentPalette)) {
+                currentPalette = availablePaletteNames.get(0);
+            }
+
             var paletteDropdownEntry = entryBuilder.<String>startDropdownMenu(
                             Text.translatable("repal.config.palette"),
-                            RepalConfig.get().selectedPalette(),
-                            s -> s,                      // Converts the string input to a String (identity function)
+                            currentPalette,
+                            s -> s,                      // Converts the string input to a String
                             s -> Text.literal(s)         // Converts the String to a Text for display
                     )
-                    .setDefaultValue("pal1")
+                    .setSelections(availablePaletteNames)
+                    .setDefaultValue(availablePaletteNames.get(0))
                     .setTooltip(Text.translatable("repal.tooltip.palette"))
                     .setSaveConsumer(selected -> RepalConfig.get().setSelectedPalette(selected))
                     .build();
