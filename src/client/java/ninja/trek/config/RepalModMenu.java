@@ -38,15 +38,16 @@ public class RepalModMenu implements ModMenuApi {
         private final Screen parent;
         private Screen clothConfigScreen;
         private TextureComboBox textureSearch;
+
         // Entry references
         private IntegerSliderEntry contrastEntry;
         private IntegerSliderEntry saturationEntry;
         private DropdownBoxEntry<String> paletteEntry;
+
         // Last known values
         private int lastContrast;
         private int lastSaturation;
         private String lastPalette;
-        private boolean initialized = false;
         private BufferedImage originalPreview;
 
         public MergedConfigScreen(Screen parent) {
@@ -56,19 +57,17 @@ public class RepalModMenu implements ModMenuApi {
 
         @Override
         protected void init() {
-//            if (initialized) {
-////                return;
-//            }
-            initialized = true;
             // Build the Cloth Config UI first
             ConfigBuilder builder = ConfigBuilder.create()
                     .setParentScreen(this)
                     .setTitle(Text.translatable("repal.config.title"))
                     .setSavingRunnable(RepalConfig::save)
                     .setTransparentBackground(true);
+
             ConfigCategory general = builder.getOrCreateCategory(
                     Text.translatable("repal.config.category.general")
             );
+
             ConfigEntryBuilder entryBuilder = builder.entryBuilder();
 
             // Pre-Contrast Slider
@@ -94,7 +93,6 @@ public class RepalModMenu implements ModMenuApi {
                     .setSaveConsumer(value -> RepalConfig.get().setPreSaturation(value))
                     .build();
             general.addEntry(saturationSliderEntry);
-
 
             // Get available palettes
             List<String> availablePaletteNames = RepalResourceReloadListener.getAvailablePalettes()
@@ -124,17 +122,17 @@ public class RepalModMenu implements ModMenuApi {
                     .setTooltip(Text.translatable("repal.tooltip.palette"))
                     .setSaveConsumer(selected -> RepalConfig.get().setSelectedPalette(selected))
                     .build();
-
-
-
             general.addEntry(paletteDropdownEntry);
 
             // Build and initialize the Cloth Config screen
             clothConfigScreen = builder.build();
             clothConfigScreen.init(client, width, height);
 
-            // Now add our texture search above the Cloth Config UI
+            // Create and position the texture search box
             textureSearch = new TextureComboBox(client, width / 2 - 100, 10, 200);
+            if (this.children().contains(textureSearch)) {
+                this.remove(textureSearch);
+            }
             addDrawableChild(textureSearch);
 
             // Store entry references
@@ -150,6 +148,44 @@ public class RepalModMenu implements ModMenuApi {
             // Load textures into the manager
             TextureManager.loadTextures(client.getResourceManager());
         }
+
+        @Override
+        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+            if (getFocused() == textureSearch) {
+                if (textureSearch.keyPressed(keyCode, scanCode, modifiers)) {
+                    return true;
+                }
+            }
+            return clothConfigScreen != null && clothConfigScreen.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        @Override
+        public boolean charTyped(char chr, int modifiers) {
+            if (getFocused() == textureSearch && textureSearch.charTyped(chr, modifiers)) {
+                return true;
+            }
+            return clothConfigScreen != null && clothConfigScreen.charTyped(chr, modifiers);
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            boolean searchHandled = textureSearch.mouseClicked(mouseX, mouseY, button);
+            if (searchHandled) {
+                setFocused(textureSearch);
+                return true;
+            }
+
+            boolean configHandled = clothConfigScreen != null && clothConfigScreen.mouseClicked(mouseX, mouseY, button);
+            if (configHandled) {
+                setFocused(null); // Let Cloth Config handle its own focus
+                return true;
+            }
+
+            return false;
+        }
+
+
+
 
 
         private void loadPreviewTexture() {
@@ -319,27 +355,8 @@ public class RepalModMenu implements ModMenuApi {
             }
         }
 
-        @Override
-        public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            if (textureSearch.isFocused() && textureSearch.keyPressed(keyCode, scanCode, modifiers)) {
-                return true;
-            }
-            return clothConfigScreen != null && clothConfigScreen.keyPressed(keyCode, scanCode, modifiers);
-        }
-        @Override
-        public boolean charTyped(char chr, int modifiers) {
-            if (textureSearch.isFocused() && textureSearch.charTyped(chr, modifiers)) {
-                return true;
-            }
-            return clothConfigScreen != null && clothConfigScreen.charTyped(chr, modifiers);
-        }
 
-        @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            if (textureSearch.mouseClicked(mouseX, mouseY, button)) {
-                return true;
-            }
-            return clothConfigScreen != null && clothConfigScreen.mouseClicked(mouseX, mouseY, button);
-        }
+
+       
     }
 }

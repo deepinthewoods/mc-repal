@@ -25,21 +25,15 @@ public class TextureComboBox extends TextFieldWidget {
         setMaxLength(50);
         setEditable(true);
         setVisible(true);
-        setFocused(true);
         active = true;
-        isDropdownVisible = true;
+        isDropdownVisible = false;
         suggestions = TextureManager.searchTextures("");
-
-        // Set up text change callback
         setChangedListener(this::onTextChanged);
-
-        Repal.LOGGER.info("TextureComboBox initialized with active state: " + active);
     }
 
     private void onTextChanged(String newText) {
         Repal.LOGGER.info("Text changed to: " + newText);
         updateSuggestions();
-        // Reset selection when text changes
         selectedSuggestion = -1;
         isDropdownVisible = true;
     }
@@ -54,21 +48,18 @@ public class TextureComboBox extends TextFieldWidget {
         if (!isActive() || !isFocused()) {
             return false;
         }
-
-        Repal.LOGGER.info("Character typed: " + chr);
-        String currentText = getText();
-        setText(currentText + chr);
-        updateSuggestions();
-        return true;
+        boolean handled = super.charTyped(chr, modifiers);
+        if (handled) {
+            updateSuggestions();
+        }
+        return handled;
     }
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (!isActive()) {
+        if (!isActive() || !isFocused()) {
             return false;
         }
-
-        Repal.LOGGER.info("Key pressed: " + keyCode);
 
         switch (keyCode) {
             case 265: // Up arrow
@@ -100,7 +91,6 @@ public class TextureComboBox extends TextFieldWidget {
 
     private void updateSuggestions() {
         String currentText = getText();
-        Repal.LOGGER.info("Updating suggestions for text: '" + currentText + "'");
         suggestions = TextureManager.searchTextures(currentText);
         isDropdownVisible = true;
     }
@@ -111,10 +101,19 @@ public class TextureComboBox extends TextFieldWidget {
             return false;
         }
 
-        Repal.LOGGER.info("Mouse clicked at: " + mouseX + ", " + mouseY);
+        // Check if click is outside the textbox and dropdown
+        boolean clickedOutside = mouseX < getX() || mouseX > getX() + getWidth() ||
+                mouseY < getY() || mouseY > getY() + getHeight() +
+                (isDropdownVisible ? Math.min(suggestions.size() * SUGGESTION_HEIGHT, dropdownHeight) : 0);
 
-        // Check dropdown clicks first
-        if (isDropdownVisible) {
+        if (clickedOutside) {
+            isDropdownVisible = false;
+            setFocused(false);
+            return false;
+        }
+
+        // Check dropdown clicks
+        if (isDropdownVisible && suggestions.size() > 0) {
             int relativeY = (int)(mouseY - (getY() + getHeight()));
             if (mouseX >= getX() && mouseX < getX() + getWidth() &&
                     relativeY >= 0 && relativeY < Math.min(suggestions.size() * SUGGESTION_HEIGHT, dropdownHeight)) {
@@ -155,7 +154,6 @@ public class TextureComboBox extends TextFieldWidget {
         if (!isVisible()) {
             return;
         }
-
         super.renderWidget(context, mouseX, mouseY, delta);
 
         if (isDropdownVisible && !suggestions.isEmpty()) {
@@ -195,17 +193,10 @@ public class TextureComboBox extends TextFieldWidget {
     }
 
     @Override
-    public void write(String text) {
-        super.write(text);
-        updateSuggestions();
-    }
-
-    @Override
     public void setFocused(boolean focused) {
         super.setFocused(focused);
-        if (focused) {
-            isDropdownVisible = true;
-            updateSuggestions();
+        if (!focused) {
+            isDropdownVisible = false;
         }
     }
 }
