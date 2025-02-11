@@ -14,5 +14,16 @@
   "repal.tooltip.palette": "Select palette to use for recoloring",
   "repal.tooltip.process": "Generate a new resource pack with recolored textures",
   "repal.search.textures": "Search textures...",
-  "repal.search.label": "Preview Texture"
+  "repal.search.label": "Preview Texture",
+
+  "repal.layer.new": "New Layer",
+  "repal.layer.delete": "Delete Layer",
+  "repal.layer.move": "Move to Layer",
+  "repal.layer.cycle": "Next Layer",
+  "repal.layer.name.placeholder": "Enter layer name...",
+  "repal.layer.default": "Default Layer",
+  "repal.layer.count": "Layer %d/%d",
+  "repal.layer.textures": "%d textures",
+  "repal.layer.confirm.delete": "Delete layer '%s'?",
+  "repal.layer.confirm.delete.desc": "This will move all textures to the default layer"
 }
