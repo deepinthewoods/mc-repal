@@ -190,9 +190,21 @@ public class RepalModMenu implements ModMenuApi {
         }
 
         private void calculateGridLayout() {
-            // Calculate number of columns based on screen width
+            // Calculate preview pair width (original + processed + spacing between them)
+            int previewPairWidth = (PREVIEW_SIZE * 2) + 8; // Two previews plus 8px spacing between them
+
+            // Calculate available width accounting for side padding
             int availableWidth = width - 40; // 20px padding on each side
-            columnsPerRow = Math.max(1, availableWidth / (PREVIEW_SIZE + PREVIEW_SPACING));
+
+            // Calculate how many preview pairs can fit per row
+            // Include PREVIEW_SPACING between each pair
+            columnsPerRow = Math.max(1, (availableWidth + PREVIEW_SPACING) / (previewPairWidth + PREVIEW_SPACING));
+
+            // Calculate available height for previews
+            int availableHeight = height - PREVIEWS_START_Y - 20; // 20px bottom padding
+
+            // Calculate maximum visible rows (used for scroll bounds)
+            int maxVisibleRows = Math.max(1, availableHeight / (PREVIEW_SIZE + PREVIEW_SPACING));
         }
 
         @Override
@@ -205,20 +217,13 @@ public class RepalModMenu implements ModMenuApi {
             // Render texture search
             textureSearch.render(context, mouseX, mouseY, delta);
 
-            // Calculate grid layout
-            int startX = (width - (columnsPerRow * (PREVIEW_SIZE + PREVIEW_SPACING))) / 2;
+            // Calculate layout dimensions
+            int previewPairWidth = PREVIEW_SIZE * 2 + 8; // Width for original + processed + spacing
+            int totalWidth = columnsPerRow * (previewPairWidth + PREVIEW_SPACING);
+            int startX = (width - totalWidth) / 2;
             int visibleRows = (height - PREVIEWS_START_Y - 20) / (PREVIEW_SIZE + PREVIEW_SPACING);
 
-            // Draw grid headers
-            context.drawCenteredTextWithShadow(
-                    textRenderer,
-                    Text.translatable("repal.search.label"),
-                    width / 2,
-                    PREVIEWS_START_Y - 30,
-                    0xFFFFFF
-            );
-
-            // Render texture grid
+// Render texture grid
             for (int row = 0; row < visibleRows; row++) {
                 int currentRow = row + currentScrollRow;
                 for (int col = 0; col < columnsPerRow; col++) {
@@ -226,7 +231,7 @@ public class RepalModMenu implements ModMenuApi {
                     if (index >= currentTextures.size()) break;
 
                     Identifier texture = currentTextures.get(index);
-                    int x = startX + (col * (PREVIEW_SIZE + PREVIEW_SPACING));
+                    int x = startX + (col * (previewPairWidth + PREVIEW_SPACING));
                     int y = PREVIEWS_START_Y + (row * (PREVIEW_SIZE + PREVIEW_SPACING));
 
                     // Draw original texture
@@ -248,7 +253,7 @@ public class RepalModMenu implements ModMenuApi {
                         Identifier processedTextureId = ProcessedTextureCache.getProcessedTexture(texture);
                         context.drawTexture(
                                 processedTextureId,
-                                x + PREVIEW_SIZE/2,
+                                x + PREVIEW_SIZE + 2, // Original width + spacing
                                 y,
                                 0,
                                 0.0f,
@@ -261,26 +266,26 @@ public class RepalModMenu implements ModMenuApi {
                     } catch (Exception e) {
                         Repal.LOGGER.error("Failed to draw processed texture", e);
                         context.fill(
-                                x + PREVIEW_SIZE/2,
+                                x + PREVIEW_SIZE + 16,
                                 y,
-                                x + PREVIEW_SIZE + PREVIEW_SIZE/2,
+                                x + PREVIEW_SIZE * 2 + 16,
                                 y + PREVIEW_SIZE,
                                 0x80FF0000
                         );
                     }
 
-                    // Draw selection highlight
+                    // Draw selection highlight if this is the current texture
                     if (texture.equals(TextureManager.getCurrentPreviewTexture())) {
                         context.drawBorder(
                                 x - 2,
                                 y - 2,
-                                PREVIEW_SIZE * 2 + 4,
+                                previewPairWidth + 4,
                                 PREVIEW_SIZE + 4,
                                 0xFFFFFF00
                         );
                     }
 
-                    // Draw texture name below previews
+                    // Draw texture name centered below the preview pair
                     String name = texture.getPath().substring(
                             texture.getPath().lastIndexOf('/') + 1,
                             texture.getPath().lastIndexOf('.')
@@ -288,7 +293,7 @@ public class RepalModMenu implements ModMenuApi {
                     context.drawCenteredTextWithShadow(
                             textRenderer,
                             Text.literal(name),
-                            x + PREVIEW_SIZE,
+                            x + (previewPairWidth / 2),
                             y + PREVIEW_SIZE + 2,
                             0xFFFFFF
                     );
@@ -307,17 +312,39 @@ public class RepalModMenu implements ModMenuApi {
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            // Handle clicks on texture previews
+            // First check if click is in the preview area
             if (mouseY >= PREVIEWS_START_Y) {
-                int startX = (width - (columnsPerRow * (PREVIEW_SIZE + PREVIEW_SPACING))) / 2;
-                int col = (int) ((mouseX - startX) / (PREVIEW_SIZE + PREVIEW_SPACING));
-                int row = (int) ((mouseY - PREVIEWS_START_Y) / (PREVIEW_SIZE + PREVIEW_SPACING));
+                // Calculate layout dimensions for preview grid
+                int previewPairWidth = PREVIEW_SIZE * 2 + 8; // Width for original + processed + spacing
+                int totalWidth = columnsPerRow * (previewPairWidth + PREVIEW_SPACING);
+                int startX = (width - totalWidth) / 2;
 
-                int index = ((row + currentScrollRow) * columnsPerRow) + col;
-                if (index >= 0 && index < currentTextures.size()) {
-                    TextureManager.setCurrentPreviewTexture(currentTextures.get(index));
-                    return true;
+                // Calculate which row and column was clicked
+                int relativeX = (int)(mouseX - startX);
+                int relativeY = (int)(mouseY - PREVIEWS_START_Y);
+
+                // Calculate grid position
+                int col = relativeX / (previewPairWidth + PREVIEW_SPACING);
+                int row = relativeY / (PREVIEW_SIZE + PREVIEW_SPACING);
+
+                // Verify click is within valid bounds
+                if (col >= 0 && col < columnsPerRow) {
+                    int index = ((row + currentScrollRow) * columnsPerRow) + col;
+                    if (index >= 0 && index < currentTextures.size()) {
+                        TextureManager.setCurrentPreviewTexture(currentTextures.get(index));
+                        return true;
+                    }
                 }
+            }
+
+            // Handle other UI element clicks
+            if (clothConfigScreen != null && clothConfigScreen.mouseClicked(mouseX, mouseY, button)) {
+                return true;
+            }
+
+            // Handle texture search clicks
+            if (textureSearch.isMouseOver(mouseX, mouseY)) {
+                return textureSearch.mouseClicked(mouseX, mouseY, button);
             }
 
             return super.mouseClicked(mouseX, mouseY, button);
