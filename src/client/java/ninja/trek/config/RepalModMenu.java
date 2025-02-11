@@ -7,7 +7,6 @@ import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
 import me.shedaniel.clothconfig2.gui.entries.DropdownBoxEntry;
 import me.shedaniel.clothconfig2.gui.entries.IntegerSliderEntry;
-import me.shedaniel.clothconfig2.gui.entries.StringListEntry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -18,6 +17,7 @@ import ninja.trek.Repal;
 import ninja.trek.RepalClient;
 import ninja.trek.ImageProcessor;
 import ninja.trek.RepalResourceReloadListener;
+import ninja.trek.TextureManager;
 import ninja.trek.PaletteInfo;
 
 import javax.imageio.ImageIO;
@@ -34,21 +34,20 @@ public class RepalModMenu implements ModMenuApi {
         return parent -> new MergedConfigScreen(parent);
     }
 
-    public static class MergedConfigScreen extends Screen {
+    public class MergedConfigScreen extends Screen {
         private final Screen parent;
         private Screen clothConfigScreen;
-        private static final Identifier GRASS_PREVIEW = Identifier.of("minecraft", "textures/block/grass_block_side.png");
-        private BufferedImage originalPreview;
-
+        private TextureComboBox textureSearch;
         // Entry references
         private IntegerSliderEntry contrastEntry;
         private IntegerSliderEntry saturationEntry;
         private DropdownBoxEntry<String> paletteEntry;
-
         // Last known values
         private int lastContrast;
         private int lastSaturation;
         private String lastPalette;
+        private boolean initialized = false;
+        private BufferedImage originalPreview;
 
         public MergedConfigScreen(Screen parent) {
             super(Text.translatable("repal.config.title"));
@@ -57,16 +56,19 @@ public class RepalModMenu implements ModMenuApi {
 
         @Override
         protected void init() {
-            // Build the Cloth Config UI
+            if (initialized) {
+                return;
+            }
+            initialized = true;
+            // Build the Cloth Config UI first
             ConfigBuilder builder = ConfigBuilder.create()
-                    .setParentScreen(parent)
+                    .setParentScreen(this)
                     .setTitle(Text.translatable("repal.config.title"))
-                    .setSavingRunnable(RepalConfig::save);
-
+                    .setSavingRunnable(RepalConfig::save)
+                    .setTransparentBackground(true);
             ConfigCategory general = builder.getOrCreateCategory(
                     Text.translatable("repal.config.category.general")
             );
-
             ConfigEntryBuilder entryBuilder = builder.entryBuilder();
 
             // Pre-Contrast Slider
@@ -82,7 +84,7 @@ public class RepalModMenu implements ModMenuApi {
             general.addEntry(contrastEntry);
 
             // Pre-Saturation Slider
-            var saturationEntry = entryBuilder.startIntSlider(
+            var saturationSliderEntry = entryBuilder.startIntSlider(
                             Text.translatable("repal.config.saturation"),
                             RepalConfig.get().preSaturation(),
                             Repal.MIN_ADJUSTMENT,
@@ -91,67 +93,60 @@ public class RepalModMenu implements ModMenuApi {
                     .setTooltip(Text.translatable("repal.tooltip.saturation"))
                     .setSaveConsumer(value -> RepalConfig.get().setPreSaturation(value))
                     .build();
-            general.addEntry(saturationEntry);
+            general.addEntry(saturationSliderEntry);
 
-            // Find palettes
-            List<PaletteInfo> palettes = RepalResourceReloadListener.getAvailablePalettes();
-            Repal.LOGGER.info("Available palettes for menu: {}", palettes.stream()
+            
+            List<String> paletteOptions = RepalResourceReloadListener.getAvailablePalettes()
+                    .stream()
                     .map(PaletteInfo::getName)
-                    .collect(Collectors.joining(", ")));
+                    .collect(Collectors.toList());
 
-// Create the dropdown
-            var paletteEntry = entryBuilder.startStringDropdownMenu(
+// Use the first option as the default value.
+            String defaultPalette = RepalConfig.get().selectedPalette();
+
+// Create your dropdown entry
+            var paletteDropdownEntry = entryBuilder.<String>startDropdownMenu(
                             Text.translatable("repal.config.palette"),
-                            RepalConfig.get().selectedPalette())
-                    .setDefaultValue(RepalResourceReloadListener.getAvailablePalettes()
-                            .stream()
-                            .findFirst()
-                            .map(PaletteInfo::getName)
-                            .orElse("pal1"))  // Use first available palette as default
-                    .setSelections(palettes.stream()
-                            .map(PaletteInfo::getName)
-                            .collect(Collectors.toSet()))
+                            RepalConfig.get().selectedPalette(),
+                            s -> s,                      // Converts the string input to a String (identity function)
+                            s -> Text.literal(s)         // Converts the String to a Text for display
+                    )
+                    .setDefaultValue("pal1")
                     .setTooltip(Text.translatable("repal.tooltip.palette"))
-                    .setSaveConsumer(value -> {
-                        Repal.LOGGER.info("Selected palette in dropdown: {}", value);
-                        RepalConfig.get().setSelectedPalette(value);
-                    })
+                    .setSaveConsumer(selected -> RepalConfig.get().setSelectedPalette(selected))
                     .build();
 
-            general.addEntry(paletteEntry);
 
-            // Pack Name Field
-            general.addEntry(entryBuilder.startStrField(
-                            Text.translatable("repal.config.pack_name"),
-                            RepalConfig.get().packName())
-                    .setDefaultValue("repal")
-                    .setTooltip(Text.translatable("repal.tooltip.pack_name"))
-                    .setSaveConsumer(value -> RepalConfig.get().setPackName(value))
-                    .build()
-            );
 
-            // Build the screen
+            general.addEntry(paletteDropdownEntry);
+
+            // Build and initialize the Cloth Config screen
             clothConfigScreen = builder.build();
             clothConfigScreen.init(client, width, height);
 
-            // Store entry references after initialization
-            this.contrastEntry = (IntegerSliderEntry) contrastEntry;
-            this.saturationEntry = (IntegerSliderEntry) saturationEntry;
-            this.paletteEntry =  paletteEntry;
+            // Now add our texture search above the Cloth Config UI
+            textureSearch = new TextureComboBox(client, width / 2 - 100, 10, 200);
+            addDrawableChild(textureSearch);
 
-            // Initialize the preview texture
-            loadPreviewTexture();
+            // Store entry references
+            this.contrastEntry = (IntegerSliderEntry) contrastEntry;
+            this.saturationEntry = (IntegerSliderEntry) saturationSliderEntry;
+            this.paletteEntry = paletteDropdownEntry;
 
             // Initialize last known values
             lastContrast = contrastEntry.getValue();
-            lastSaturation = saturationEntry.getValue();
-            lastPalette = paletteEntry.getValue();
+            lastSaturation = saturationSliderEntry.getValue();
+            lastPalette = paletteDropdownEntry.getValue();
+
+            // Load textures into the manager
+            TextureManager.loadTextures(client.getResourceManager());
         }
+
 
         private void loadPreviewTexture() {
             try {
                 var resource = client.getResourceManager()
-                        .getResource(GRASS_PREVIEW)
+                        .getResource(TextureManager.getCurrentPreviewTexture())
                         .orElseThrow();
                 try (InputStream stream = resource.getInputStream()) {
                     BufferedImage originalImage = ImageIO.read(stream);
@@ -203,7 +198,9 @@ public class RepalModMenu implements ModMenuApi {
 
         @Override
         public void tick() {
-            clothConfigScreen.tick();
+            if (clothConfigScreen != null) {
+                clothConfigScreen.tick();
+            }
 
             // Poll current values
             int currentContrast = contrastEntry.getValue();
@@ -235,24 +232,25 @@ public class RepalModMenu implements ModMenuApi {
                 lastContrast = currentContrast;
                 lastSaturation = currentSaturation;
                 lastPalette = currentPalette;
-
-                Repal.LOGGER.info("Updated preview - Contrast: {}, Saturation: {}, Palette: {}",
-                        currentContrast, currentSaturation, currentPalette);
             }
         }
 
         @Override
         public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-            // First, let the Cloth Config screen render its UI
-            clothConfigScreen.render(context, mouseX, mouseY, delta);
+            if (clothConfigScreen != null) {
+                clothConfigScreen.render(context, mouseX, mouseY, delta);
+            }
 
-            // Draw the preview area at the bottom
+            // Render our texture search box
+            textureSearch.render(context, mouseX, mouseY, delta);
+
+            // Draw the preview area
             int previewAreaHeight = 100;
             int yStart = height - previewAreaHeight + 10;
 
             // Draw the original texture preview on the left
             context.drawTexture(
-                    GRASS_PREVIEW,
+                    TextureManager.getCurrentPreviewTexture(),
                     width / 4 - 32,
                     yStart,
                     0,
@@ -293,23 +291,46 @@ public class RepalModMenu implements ModMenuApi {
                     yStart - 12,
                     0xFFFFFF
             );
+
+            // Draw texture search label
+            context.drawCenteredTextWithShadow(
+                    textRenderer,
+                    Text.translatable("repal.search.label"),
+                    width / 2,
+                    25,
+                    0xFFFFFF
+            );
         }
+
 
         @Override
         public void removed() {
-            clothConfigScreen.removed();
+            if (clothConfigScreen != null) {
+                clothConfigScreen.removed();
+            }
         }
 
         @Override
         public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-            return clothConfigScreen.keyPressed(keyCode, scanCode, modifiers)
-                    || super.keyPressed(keyCode, scanCode, modifiers);
+            if (textureSearch.isFocused() && textureSearch.keyPressed(keyCode, scanCode, modifiers)) {
+                return true;
+            }
+            return clothConfigScreen != null && clothConfigScreen.keyPressed(keyCode, scanCode, modifiers);
+        }
+        @Override
+        public boolean charTyped(char chr, int modifiers) {
+            if (textureSearch.isFocused() && textureSearch.charTyped(chr, modifiers)) {
+                return true;
+            }
+            return clothConfigScreen != null && clothConfigScreen.charTyped(chr, modifiers);
         }
 
         @Override
         public boolean mouseClicked(double mouseX, double mouseY, int button) {
-            return clothConfigScreen.mouseClicked(mouseX, mouseY, button)
-                    || super.mouseClicked(mouseX, mouseY, button);
+            if (textureSearch.mouseClicked(mouseX, mouseY, button)) {
+                return true;
+            }
+            return clothConfigScreen != null && clothConfigScreen.mouseClicked(mouseX, mouseY, button);
         }
     }
 }

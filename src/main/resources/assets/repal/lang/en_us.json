@@ -12,5 +12,7 @@
   "repal.tooltip.contrast": "Adjusts contrast before palette mapping (-100 to 100)",
   "repal.tooltip.saturation": "Adjusts saturation before palette mapping (-100 to 100)",
   "repal.tooltip.palette": "Select palette to use for recoloring",
-  "repal.tooltip.process": "Generate a new resource pack with recolored textures"
+  "repal.tooltip.process": "Generate a new resource pack with recolored textures",
+  "repal.search.textures": "Search textures...",
+  "repal.search.label": "Preview Texture"
 }
