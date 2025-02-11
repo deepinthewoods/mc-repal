@@ -6,7 +6,6 @@ import net.minecraft.resource.ResourceType;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ninja.trek.config.RepalConfig;
 
 public class Repal implements ModInitializer {
 	public static final String MOD_ID = "repal";
@@ -16,53 +15,55 @@ public class Repal implements ModInitializer {
 	public static final Identifier PALETTE_1 = Identifier.of(MOD_ID, "textures/palette/pal1.png");
 	public static final Identifier PALETTE_2 = Identifier.of(MOD_ID, "textures/palette/pal2.png");
 
-	// Settings constants
+	// Constants for adjustment ranges
 	public static final int MIN_ADJUSTMENT = -100;
 	public static final int MAX_ADJUSTMENT = 100;
-	public static final int DEFAULT_ADJUSTMENT = 0;
+
+	private static int selectedPalette = 1;
+	private static int preContrast = 0;
+	private static int preSaturation = 0;
+	private static String packName = "repal";
 
 	@Override
 	public void onInitialize() {
-		LOGGER.info("Initializing Repal - Texture Recoloring Mod");
+		LOGGER.info("Initializing Repal");
 
-		// Load config
-		RepalConfig.load();
-
-		// Register resource reload listener
+		// Register the resource reload listener
 		ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES)
 				.registerReloadListener(new RepalResourceReloadListener());
 	}
 
-	// Static access methods that use the config
+	// Getter methods
+	public static int getSelectedPalette() {
+		return selectedPalette;
+	}
+
 	public static int getPreContrast() {
-		return RepalConfig.get().preContrast();
+		return preContrast;
 	}
 
 	public static int getPreSaturation() {
-		return RepalConfig.get().preSaturation();
+		return preSaturation;
 	}
 
-	public static int getSelectedPalette() {
-		return RepalConfig.get().selectedPalette();
+	// Setter methods with validation
+	public static void setSelectedPalette(int palette) {
+		selectedPalette = (palette == 1 || palette == 2) ? palette : 1;
+	}
+
+	public static void setPreContrast(int contrast) {
+		preContrast = Math.max(MIN_ADJUSTMENT, Math.min(MAX_ADJUSTMENT, contrast));
+	}
+
+	public static void setPreSaturation(int saturation) {
+		preSaturation = Math.max(MIN_ADJUSTMENT, Math.min(MAX_ADJUSTMENT, saturation));
 	}
 
 	public static String getPackName() {
-		return RepalConfig.get().packName();
-	}
-
-	public static void setPreContrast(int value) {
-		RepalConfig.get().setPreContrast(value);
-	}
-
-	public static void setPreSaturation(int value) {
-		RepalConfig.get().setPreSaturation(value);
-	}
-
-	public static void setSelectedPalette(int value) {
-		RepalConfig.get().setSelectedPalette(value);
+		return packName;
 	}
 
 	public static void setPackName(String name) {
-		RepalConfig.get().setPackName(name);
+		packName = (name == null || name.trim().isEmpty()) ? "repal" : name.trim();
 	}
 }

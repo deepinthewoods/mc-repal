@@ -10,6 +10,7 @@ public class ImageProcessor {
 
     public static BufferedImage processImage(BufferedImage input, List<Color> targetPalette, int contrast, int saturation) {
         if (targetPalette.isEmpty()) {
+            Repal.LOGGER.info("empty pallette");
             return input;
         }
 

@@ -8,6 +8,9 @@ import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.util.Identifier;
 import ninja.trek.Repal;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 public class RepalClient implements ClientModInitializer {
 	private static NativeImageBackedTexture previewTexture;
 	public static final Identifier PREVIEW_TEXTURE_ID = Identifier.of(Repal.MOD_ID, "preview");
@@ -29,17 +32,35 @@ public class RepalClient implements ClientModInitializer {
 
 	private void initializePreviewTexture(MinecraftClient client) {
 		try {
-			NativeImage image = new NativeImage(NativeImage.Format.RGBA, 16, 16, true);
-			for (int x = 0; x < 16; x++) {
-				for (int y = 0; y < 16; y++) {
-					int color = (x + y) % 2 == 0 ? 0xFF808080 : 0xFFCCCCCC;
-					setColorArgb(image, x, y, color);
-				}
+			// Get the grass block texture resource
+			var resource = client.getResourceManager()
+					.getResource(Identifier.of("minecraft", "textures/block/grass_block_top.png"))
+					.orElseThrow();
+
+			// Read the texture directly as NativeImage
+			try (InputStream stream = resource.getInputStream()) {
+				NativeImage nativeImage = NativeImage.read(stream);
+				previewTexture = new NativeImageBackedTexture(nativeImage);
+				client.getTextureManager().registerTexture(PREVIEW_TEXTURE_ID, previewTexture);
 			}
-			previewTexture = new NativeImageBackedTexture(image);
-			client.getTextureManager().registerTexture(PREVIEW_TEXTURE_ID, previewTexture);
 		} catch (Exception e) {
 			Repal.LOGGER.error("Failed to initialize preview texture", e);
+			e.printStackTrace();
+
+			// Fallback to a solid color if loading fails
+			try {
+				NativeImage fallback = new NativeImage(16, 16, false);
+				int grassColor = 0xFF7BAA3F; // Default grass green color
+				for (int x = 0; x < 16; x++) {
+					for (int y = 0; y < 16; y++) {
+						fallback.setColor(x, y, grassColor);
+					}
+				}
+				previewTexture = new NativeImageBackedTexture(fallback);
+				client.getTextureManager().registerTexture(PREVIEW_TEXTURE_ID, previewTexture);
+			} catch (Exception fallbackError) {
+				Repal.LOGGER.error("Failed to create fallback texture", fallbackError);
+			}
 		}
 	}
 
@@ -57,11 +78,27 @@ public class RepalClient implements ClientModInitializer {
 
 	public static void updatePreviewTexture(NativeImage newImage) {
 		MinecraftClient client = MinecraftClient.getInstance();
-		if (previewTexture != null) {
-			client.getTextureManager().destroyTexture(PREVIEW_TEXTURE_ID);
-			previewTexture.close();
+
+		// Ensure we're on the main thread
+		if (!client.isOnThread()) {
+			client.execute(() -> updatePreviewTexture(newImage));
+			return;
 		}
-		previewTexture = new NativeImageBackedTexture(newImage);
-		client.getTextureManager().registerTexture(PREVIEW_TEXTURE_ID, previewTexture);
+
+		try {
+			// Clean up old texture if it exists
+			if (previewTexture != null) {
+				previewTexture.close();
+				client.getTextureManager().destroyTexture(PREVIEW_TEXTURE_ID);
+			}
+
+			// Create and register new texture
+			previewTexture = new NativeImageBackedTexture(newImage);
+			client.getTextureManager().registerTexture(PREVIEW_TEXTURE_ID, previewTexture);
+
+		} catch (Exception e) {
+			Repal.LOGGER.error("Failed to update preview texture", e);
+			e.printStackTrace();
+		}
 	}
 }
