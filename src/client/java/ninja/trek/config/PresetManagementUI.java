@@ -6,10 +6,8 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.text.Text;
 import ninja.trek.config.LayerImportExport;
-
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 public class PresetManagementUI {
     private final MinecraftClient client;
@@ -103,6 +101,7 @@ public class PresetManagementUI {
 
         int entryHeight = 20;
         int scrollOffset = 0;
+
         for (int i = 0; i < availablePresets.size(); i++) {
             int entryY = listY + i * entryHeight - scrollOffset;
             if (entryY >= listY && entryY + entryHeight <= listY + LIST_HEIGHT) {
@@ -138,7 +137,6 @@ public class PresetManagementUI {
                 return true;
             }
         }
-
         return false;
     }
 
@@ -147,22 +145,10 @@ public class PresetManagementUI {
     }
 
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (presetNameField != null && presetNameField.keyPressed(keyCode, scanCode, modifiers)) {
-            return true;
-        }
-        return false;
+        return presetNameField.keyPressed(keyCode, scanCode, modifiers);
     }
 
     public boolean charTyped(char chr, int modifiers) {
-        if (presetNameField != null && presetNameField.charTyped(chr, modifiers)) {
-            return true;
-        }
-        return false;
-    }
-
-    private Optional<TextFieldWidget> layerNameField = Optional.empty();
-
-    public void tick() {
-        layerNameField.ifPresent(TextFieldWidget::tick);
+        return presetNameField.charTyped(chr, modifiers);
     }
 }

@@ -192,11 +192,18 @@ public class TextureComboBox extends TextFieldWidget {
         }
     }
 
-    @Override
     public void setFocused(boolean focused) {
         super.setFocused(focused);
         if (!focused) {
             isDropdownVisible = false;
+        }
+    }
+
+
+    public void tick() {
+
+        if (isDropdownVisible) {
+            updateSuggestions();
         }
     }
 }

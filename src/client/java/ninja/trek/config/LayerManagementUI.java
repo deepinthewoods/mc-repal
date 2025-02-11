@@ -6,7 +6,6 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import ninja.trek.LayerInfo;
 import ninja.trek.LayerManager;
-import ninja.trek.Repal;
 import ninja.trek.TextureManager;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -24,7 +23,6 @@ public class LayerManagementUI {
     private TextFieldWidget layerNameField;
     private List<LayerInfo> layers;
     private int selectedLayerIndex = 0;
-
     private static final int BUTTON_HEIGHT = 20;
     private static final int BUTTON_SPACING = 4;
     private static final int FIELD_HEIGHT = 20;
@@ -137,7 +135,6 @@ public class LayerManagementUI {
 
     private void onDeleteLayerClick(ButtonWidget button) {
         if (layers.size() <= 1) return;
-
         LayerInfo layerToDelete = layers.get(selectedLayerIndex);
         LayerManager.getInstance().deleteLayer(layerToDelete.getId());
         layers = LayerManager.getInstance().getAllLayers();
@@ -149,7 +146,6 @@ public class LayerManagementUI {
     private void onMoveToLayerClick(ButtonWidget button) {
         Set<Identifier> selectedTextures = TextureManager.getSelectedTextures();
         if (selectedTextures.isEmpty() || layers.isEmpty()) return;
-
         LayerInfo targetLayer = layers.get(selectedLayerIndex);
         TextureManager.moveSelectedTexturesToLayer(targetLayer);
         updateButtonStates();
@@ -157,7 +153,6 @@ public class LayerManagementUI {
 
     private void onCycleLayerClick(ButtonWidget button) {
         if (layers.isEmpty()) return;
-
         selectedLayerIndex = (selectedLayerIndex + 1) % layers.size();
         LayerManager.getInstance().setActiveLayer(layers.get(selectedLayerIndex).getId());
         updateLayerNameField();
@@ -165,10 +160,7 @@ public class LayerManagementUI {
     }
 
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (layerNameField.mouseClicked(mouseX, mouseY, button)) {
-            return true;
-        }
-        return false;
+        return layerNameField.mouseClicked(mouseX, mouseY, button);
     }
 
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
@@ -195,9 +187,5 @@ public class LayerManagementUI {
                 moveToLayerButton,
                 cycleLayerButton
         );
-    }
-
-    public void tick() {
-        layerNameField.tick();
     }
 }

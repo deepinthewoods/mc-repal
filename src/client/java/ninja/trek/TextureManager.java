@@ -57,7 +57,33 @@ public class TextureManager {
                 .filter(texture -> !assignedTextures.contains(texture))
                 .collect(Collectors.toList());
     }
+    public static void reprocessCurrentPreview() {
+        Identifier currentPreview = getCurrentPreviewTexture();
+        if (currentPreview != null) {
+            // Clear the processed texture from cache to force reprocessing
+            ProcessedTextureCache.clearTexture(currentPreview);
+            // Trigger reprocessing by getting the processed texture again
+            LayerInfo activeLayer = LayerManager.getInstance().getActiveLayer();
+            if (activeLayer != null) {
+                ProcessedTextureCache.getProcessedTexture(currentPreview, activeLayer);
+            }
+        }
+    }
 
+    /* Search for textures matching the query string across all available textures
+     * @param query The search query
+     * @return List of matching texture Identifiers
+     */
+    public static List<Identifier> searchTextures(String query) {
+        return searchTextures(query, null);
+    }
+
+    /**
+     * Search for textures matching the query string within a specific layer
+     * @param query The search query
+     * @param layer The layer to search within, or null to search all textures
+     * @return List of matching texture Identifiers
+     */
     public static List<Identifier> searchTextures(String query, LayerInfo layer) {
         List<Identifier> searchPool;
         if (layer != null) {
