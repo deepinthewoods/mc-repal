@@ -222,9 +222,6 @@ public class RepalModMenu implements ModMenuApi {
             clothConfigScreen.init(client, width, height);
         }
 
-
-
-
         private void addDrawableChildren() {
             // Add layer UI buttons
             for (ButtonWidget button : layerUI.getButtons()) {
