@@ -8,6 +8,7 @@ import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
@@ -34,12 +35,15 @@ public class ProcessedTextureCache {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             CacheKey cacheKey = (CacheKey) o;
-            return textureId.equals(cacheKey.textureId) && layerId.equals(cacheKey.layerId);
+            return textureId.equals(cacheKey.textureId) &&
+                    layerId.equals(cacheKey.layerId) &&
+                    contrast == cacheKey.contrast &&
+                    saturation == cacheKey.saturation &&
+                    Objects.equals(palette, cacheKey.palette);
         }
-
         @Override
         public int hashCode() {
-            return 31 * textureId.hashCode() + layerId.hashCode();
+            return Objects.hash(textureId, layerId, contrast, saturation, palette);
         }
     }
 
@@ -142,30 +146,15 @@ public class ProcessedTextureCache {
         });
     }
 
+    // In ProcessedTextureCache.java
     public static Identifier getProcessedTexture(Identifier originalTexture, LayerInfo layer) {
-        if (layer == null) {
-            Repal.LOGGER.error("Attempted to get processed texture with null layer");
-            return originalTexture;
-        }
-
         CacheKey key = new CacheKey(originalTexture, layer);
-        // Remove any existing processed texture for this key
-        Identifier existingId = processedTextureIds.get(key);
-        if (existingId != null) {
-            MinecraftClient client = MinecraftClient.getInstance();
-            //client.execute(() -> client.getTextureManager().destroyTexture(existingId));
-            processedTextureIds.remove(key);
-        }
-
-        // Create new processed texture ID
-        Identifier processedId = Identifier.of(Repal.MOD_ID,
-                "processed/" + layer.getId() + "/" + originalTexture.getPath().replace('/', '_'));
-
-        // Process texture and add to cache
-        processTexture(originalTexture, processedId, layer);
-        processedTextureIds.put(key, processedId);
-
-        return processedId;
+        return processedTextureIds.computeIfAbsent(key, k -> {
+            Identifier processedId = Identifier.of(Repal.MOD_ID,
+                    "processed/" + layer.getId() + "/" + originalTexture.getPath().replace('/', '_'));
+            processTexture(originalTexture, processedId, layer);
+            return processedId;
+        });
     }
 
     public static void clearLayerCache(UUID layerId) {

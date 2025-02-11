@@ -123,60 +123,32 @@ public class RepalModMenu implements ModMenuApi {
                     currentTextures != null ? currentTextures.size() : 0);
         }
 
+        // In RepalModMenu.java
         private void checkSettingsChanges() {
             LayerInfo activeLayer = LayerManager.getInstance().getActiveLayer();
             if (activeLayer == null) return;
 
-            boolean changed = false;
+            boolean contrastChanged = false;
+            boolean saturationChanged = false;
+            boolean paletteChanged = false;
 
-            // Check contrast slider value
-            if (contrastEntry != null) {
-                int newContrast = contrastEntry.getValue();
-                if (newContrast != activeLayer.getContrast()) {
-                    activeLayer.setContrast(newContrast);
-                    changed = true;
-                }
+            // Check individual setting changes
+            if (contrastEntry != null && contrastEntry.getValue() != activeLayer.getContrast()) {
+                contrastChanged = true;
+                activeLayer.setContrast(contrastEntry.getValue());
             }
 
-            // Check saturation slider value
-            if (saturationEntry != null) {
-                int newSaturation = saturationEntry.getValue();
-                if (newSaturation != activeLayer.getSaturation()) {
-                    activeLayer.setSaturation(newSaturation);
-                    changed = true;
-                }
+            if (saturationEntry != null && saturationEntry.getValue() != activeLayer.getSaturation()) {
+                saturationChanged = true;
+                activeLayer.setSaturation(saturationEntry.getValue());
             }
 
-            // Check palette selection
-            if (paletteEntry != null) {
-                String newPalette = paletteEntry.getValue();
-                if (!Objects.equals(newPalette, activeLayer.getPalette())) {
-                    activeLayer.setPalette(newPalette);
-                    changed = true;
-                }
+            if (paletteEntry != null && !Objects.equals(paletteEntry.getValue(), activeLayer.getPalette())) {
+                paletteChanged = true;
+                activeLayer.setPalette(paletteEntry.getValue());
             }
 
-            if (changed) {
-                Repal.LOGGER.info("Settings changed - Contrast: {}, Saturation: {}, Palette: {}",
-                        activeLayer.getContrast(),
-                        activeLayer.getSaturation(),
-                        activeLayer.getPalette());
 
-                // Update preview and visible textures
-                Identifier currentPreview = TextureManager.getCurrentPreviewTexture();
-                if (currentPreview != null) {
-                    ProcessedTextureCache.clearTexture(currentPreview);
-                    ProcessedTextureCache.getProcessedTexture(currentPreview, activeLayer);
-                }
-
-                // Update visible textures
-                if (currentTextures != null) {
-                    for (Identifier texture : currentTextures) {
-                        ProcessedTextureCache.clearTexture(texture);
-                        ProcessedTextureCache.getProcessedTexture(texture, activeLayer);
-                    }
-                }
-            }
         }
 
         private void initializeConfigUI(int x, int y, int width) {
@@ -250,26 +222,7 @@ public class RepalModMenu implements ModMenuApi {
             clothConfigScreen.init(client, width, height);
         }
 
-        private void updatePreviewsForActiveLayer() {
-            // Clear the texture cache for processing
-            ProcessedTextureCache.clearCache();
 
-            // Force redraw of current textures
-            if (currentTextures != null) {
-                for (Identifier texture : currentTextures) {
-                    ProcessedTextureCache.clearTexture(texture);
-                }
-            }
-
-            // Update current preview texture if one is set
-            Identifier currentPreview = TextureManager.getCurrentPreviewTexture();
-            if (currentPreview != null) {
-                ProcessedTextureCache.clearTexture(currentPreview);
-            }
-
-            // Force a texture list update to refresh the UI
-            updateTextureList();
-        }
 
 
         private void addDrawableChildren() {
