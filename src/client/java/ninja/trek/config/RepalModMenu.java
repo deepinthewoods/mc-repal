@@ -95,14 +95,8 @@ public class RepalModMenu implements ModMenuApi {
                     .build();
             general.addEntry(saturationSliderEntry);
 
-            
-            List<String> paletteOptions = RepalResourceReloadListener.getAvailablePalettes()
-                    .stream()
-                    .map(PaletteInfo::getName)
-                    .collect(Collectors.toList());
 
-// Use the first option as the default value.
-            String defaultPalette = RepalConfig.get().selectedPalette();
+
 
 // Create your dropdown entry
             var paletteDropdownEntry = entryBuilder.<String>startDropdownMenu(
