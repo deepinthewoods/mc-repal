@@ -10,6 +10,7 @@ import me.shedaniel.clothconfig2.gui.entries.IntegerSliderEntry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
@@ -38,17 +39,23 @@ public class RepalModMenu implements ModMenuApi {
         private final Screen parent;
         private Screen clothConfigScreen;
         private TextureComboBox textureSearch;
-
-        // Entry references
         private IntegerSliderEntry contrastEntry;
         private IntegerSliderEntry saturationEntry;
         private DropdownBoxEntry<String> paletteEntry;
-
-        // Last known values
         private int lastContrast;
         private int lastSaturation;
         private String lastPalette;
         private BufferedImage originalPreview;
+
+        // New fields for texture preview list
+        private static final int PREVIEW_SIZE = 64;
+        private static final int PREVIEW_SPACING = 12;
+        private static final int CONFIG_HEIGHT = 200; // Height needed for config UI
+        private static final int PREVIEWS_START_Y = CONFIG_HEIGHT + 20; // Starting Y position after the search box
+        private int previewScrollOffset = 0;
+        private ButtonWidget scrollUpButton;
+        private ButtonWidget scrollDownButton;
+        private List<Identifier> currentTextures;
 
         public MergedConfigScreen(Screen parent) {
             super(Text.translatable("repal.config.title"));
@@ -147,6 +154,29 @@ public class RepalModMenu implements ModMenuApi {
 
             // Load textures into the manager
             TextureManager.loadTextures(client.getResourceManager());
+
+            // Calculate how many previews can fit
+            int availableHeight = height - PREVIEWS_START_Y - 20; // Leave space at bottom
+            int maxPreviewsVisible = availableHeight / (PREVIEW_SIZE + PREVIEW_SPACING);
+
+            // Initialize texture list
+            currentTextures = TextureManager.getBlockTextures();
+
+            // Add scroll buttons
+            scrollUpButton = ButtonWidget.builder(Text.literal("▲"), button -> {
+                        if (previewScrollOffset > 0) previewScrollOffset--;
+                    })
+                    .dimensions(width - 30, PREVIEWS_START_Y, 20, 20)
+                    .build();
+
+            scrollDownButton = ButtonWidget.builder(Text.literal("▼"), button -> {
+                        if (previewScrollOffset < currentTextures.size() - maxPreviewsVisible) previewScrollOffset++;
+                    })
+                    .dimensions(width - 30, height - 40, 20, 20)
+                    .build();
+
+            addDrawableChild(scrollUpButton);
+            addDrawableChild(scrollDownButton);
         }
 
         @Override
@@ -286,56 +316,76 @@ public class RepalModMenu implements ModMenuApi {
                 clothConfigScreen.render(context, mouseX, mouseY, delta);
             }
 
-            // Render our texture search box
+            // Render texture search box
             textureSearch.render(context, mouseX, mouseY, delta);
 
-            // Draw the preview area
-            int previewAreaHeight = 100;
-            int yStart = height - previewAreaHeight + 10;
+            // Calculate available space for previews
+            int availableHeight = height - PREVIEWS_START_Y - 40; // More bottom padding
+            int maxPreviewsVisible = availableHeight / (PREVIEW_SIZE + PREVIEW_SPACING);
 
-            // Draw the original texture preview on the left
-            context.drawTexture(
-                    TextureManager.getCurrentPreviewTexture(),
-                    width / 4 - 32,
-                    yStart,
-                    0,
-                    0.0f,
-                    0.0f,
-                    64,
-                    64,
-                    64,
-                    64
-            );
+            // Render texture previews
+            int currentY = PREVIEWS_START_Y;
+            for (int i = 0; i < maxPreviewsVisible && (i + previewScrollOffset) < currentTextures.size(); i++) {
+                Identifier texture = currentTextures.get(i + previewScrollOffset);
 
-            // Draw the processed texture preview on the right
-            context.drawTexture(
-                    RepalClient.PREVIEW_TEXTURE_ID,
-                    3 * width / 4 - 32,
-                    yStart,
-                    0,
-                    0.0f,
-                    0.0f,
-                    64,
-                    64,
-                    64,
-                    64
-            );
+                // Draw original texture on the left
+                context.drawTexture(
+                        texture,
+                        width / 4 - PREVIEW_SIZE/2,
+                        currentY,
+                        0,
+                        0.0f,
+                        0.0f,
+                        PREVIEW_SIZE,
+                        PREVIEW_SIZE,
+                        PREVIEW_SIZE,
+                        PREVIEW_SIZE
+                );
 
-            // Draw labels above the previews
-            context.drawCenteredTextWithShadow(
-                    textRenderer,
-                    Text.translatable("repal.preview.original"),
-                    width / 4,
-                    yStart - 12,
-                    0xFFFFFF
-            );
-            context.drawCenteredTextWithShadow(
-                    textRenderer,
-                    Text.translatable("repal.preview.processed"),
-                    3 * width / 4,
-                    yStart - 12,
-                    0xFFFFFF
-            );
+                // If this is the currently selected texture, also draw processed version
+                if (texture.equals(TextureManager.getCurrentPreviewTexture())) {
+                    context.drawTexture(
+                            RepalClient.PREVIEW_TEXTURE_ID,
+                            3 * width / 4 - PREVIEW_SIZE/2,
+                            currentY,
+                            0,
+                            0.0f,
+                            0.0f,
+                            PREVIEW_SIZE,
+                            PREVIEW_SIZE,
+                            PREVIEW_SIZE,
+                            PREVIEW_SIZE
+                    );
+
+                    // Draw highlight around selected texture
+                    context.drawBorder(
+                            width / 4 - PREVIEW_SIZE/2 - 2,
+                            currentY - 2,
+                            PREVIEW_SIZE + 4,
+                            PREVIEW_SIZE + 4,
+                            0xFFFFFF00
+                    );
+                }
+
+                // Draw texture name
+                String name = texture.getPath().substring(
+                        texture.getPath().lastIndexOf('/') + 1,
+                        texture.getPath().lastIndexOf('.')
+                );
+                context.drawCenteredTextWithShadow(
+                        textRenderer,
+                        Text.literal(name),
+                        width / 4,
+                        currentY + PREVIEW_SIZE + 2,
+                        0xFFFFFF
+                );
+
+                currentY += PREVIEW_SIZE + PREVIEW_SPACING;
+            }
+
+            // Update scroll button states
+            scrollUpButton.active = previewScrollOffset > 0;
+            scrollDownButton.active = previewScrollOffset < currentTextures.size() - maxPreviewsVisible;
 
             // Draw texture search label
             context.drawCenteredTextWithShadow(
@@ -345,6 +395,19 @@ public class RepalModMenu implements ModMenuApi {
                     25,
                     0xFFFFFF
             );
+        }
+
+        @Override
+        public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+            // Handle mouse wheel scrolling
+            if (verticalAmount < 0 && scrollDownButton.active) {
+                previewScrollOffset++;
+                return true;
+            } else if (verticalAmount > 0 && scrollUpButton.active) {
+                previewScrollOffset--;
+                return true;
+            }
+            return false;
         }
 
 
@@ -357,6 +420,6 @@ public class RepalModMenu implements ModMenuApi {
 
 
 
-       
+
     }
 }
