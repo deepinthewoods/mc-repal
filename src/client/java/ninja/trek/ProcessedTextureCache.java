@@ -10,6 +10,8 @@ import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
+
 
 public class ProcessedTextureCache {
     private static class CacheKey {
