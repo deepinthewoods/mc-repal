@@ -20,6 +20,7 @@ public class ProcessedTextureCache {
         private final UUID layerId;
         private final int contrast;
         private final int saturation;
+        private final int hue;  // Added hue to cache key
         private final String palette;
 
         public CacheKey(Identifier textureId, LayerInfo layer) {
@@ -27,6 +28,7 @@ public class ProcessedTextureCache {
             this.layerId = layer.getId();
             this.contrast = layer.getContrast();
             this.saturation = layer.getSaturation();
+            this.hue = layer.getHue();  // Include hue in cache key
             this.palette = layer.getPalette();
         }
 
@@ -39,41 +41,39 @@ public class ProcessedTextureCache {
                     layerId.equals(cacheKey.layerId) &&
                     contrast == cacheKey.contrast &&
                     saturation == cacheKey.saturation &&
+                    hue == cacheKey.hue &&  // Include hue in equals
                     Objects.equals(palette, cacheKey.palette);
         }
+
         @Override
         public int hashCode() {
-            return Objects.hash(textureId, layerId, contrast, saturation, palette);
+            return Objects.hash(textureId, layerId, contrast, saturation, hue, palette);  // Include hue in hash
         }
     }
 
     private static final ConcurrentHashMap<CacheKey, Identifier> processedTextureIds = new ConcurrentHashMap<>();
     private static final int MAX_CACHE_SIZE = 100; // Increased due to multiple layers
 
-
     private static void processTexture(Identifier originalId, Identifier processedId, LayerInfo layer) {
         MinecraftClient client = MinecraftClient.getInstance();
         try {
-            // Get the original texture resource
             var resource = client.getResourceManager()
                     .getResource(originalId)
                     .orElseThrow();
 
-            // Read and process the image
             try (InputStream stream = resource.getInputStream()) {
                 BufferedImage originalImage = ImageIO.read(stream);
                 if (originalImage == null) {
                     throw new IllegalStateException("Failed to read image: " + originalId);
                 }
 
-                // Get layer-specific settings
                 List<Color> layerPalette = RepalResourceReloadListener.getLayerPaletteColors(layer);
-
                 BufferedImage processedImage = ImageProcessor.processImage(
                         originalImage,
                         layerPalette,
                         layer.getContrast(),
-                        layer.getSaturation()
+                        layer.getSaturation(),
+                        layer.getHue()  // Added hue parameter
                 );
 
                 // Convert to NativeImage
@@ -101,15 +101,27 @@ public class ProcessedTextureCache {
                     NativeImageBackedTexture texture = new NativeImageBackedTexture(nativeImage);
                     client.getTextureManager().registerTexture(processedId, texture);
                 });
-
-            } catch (Exception e) {
-                Repal.LOGGER.error("Failed to process texture data for " + originalId, e);
-                throw e;
             }
         } catch (Exception e) {
             Repal.LOGGER.error("Failed to process texture: " + originalId + " for layer: " + layer.getName(), e);
         }
     }
+
+    public static Identifier getProcessedTexture(Identifier originalTexture, LayerInfo layer) {
+        CacheKey key = new CacheKey(originalTexture, layer);
+        return processedTextureIds.computeIfAbsent(key, k -> {
+            Identifier processedId = Identifier.of(Repal.MOD_ID,
+                    "processed/" + layer.getId() + "/" +
+                            originalTexture.getPath().replace('/', '_') +
+                            "_" + layer.getPalette() +
+                            "_" + layer.getContrast() +
+                            "_" + layer.getSaturation() +
+                            "_" + layer.getHue());  // Added hue to processed texture identifier
+            processTexture(originalTexture, processedId, layer);
+            return processedId;
+        });
+    }
+
 
     private static void cleanCacheIfNeeded() {
         if (processedTextureIds.size() > MAX_CACHE_SIZE) {
@@ -123,14 +135,21 @@ public class ProcessedTextureCache {
 
     public static void clearCache() {
         MinecraftClient client = MinecraftClient.getInstance();
-        // Use client.execute to ensure we're on the main thread
-        client.execute(() -> {
+        if (client.isOnThread()) {
             processedTextureIds.forEach((key, processedId) -> {
                 client.getTextureManager().destroyTexture(processedId);
             });
             processedTextureIds.clear();
-        });
+        } else {
+            client.execute(() -> {
+                processedTextureIds.forEach((key, processedId) -> {
+                    client.getTextureManager().destroyTexture(processedId);
+                });
+                processedTextureIds.clear();
+            });
+        }
     }
+
 
     public static void clearTexture(Identifier textureId) {
         MinecraftClient client = MinecraftClient.getInstance();
@@ -146,16 +165,6 @@ public class ProcessedTextureCache {
         });
     }
 
-    // In ProcessedTextureCache.java
-    public static Identifier getProcessedTexture(Identifier originalTexture, LayerInfo layer) {
-        CacheKey key = new CacheKey(originalTexture, layer);
-        return processedTextureIds.computeIfAbsent(key, k -> {
-            Identifier processedId = Identifier.of(Repal.MOD_ID,
-                    "processed/" + layer.getId() + "/" + originalTexture.getPath().replace('/', '_'));
-            processTexture(originalTexture, processedId, layer);
-            return processedId;
-        });
-    }
 
     public static void clearLayerCache(UUID layerId) {
         MinecraftClient client = MinecraftClient.getInstance();

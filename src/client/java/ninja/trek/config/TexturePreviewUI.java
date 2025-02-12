@@ -379,7 +379,7 @@ public class TexturePreviewUI {
     }
 
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (mouseY >= areaY && mouseY < areaY + areaHeight) {
+        if (mouseY >= areaY && mouseY < areaY + areaHeight && mouseX < areaWidth) {
             int visibleRows = (areaHeight - 20) / (PREVIEW_SIZE + PREVIEW_SPACING);
             int totalRows = (int) Math.ceil((double) currentTextures.size() / columnsPerRow);
 

@@ -5,12 +5,11 @@ import java.awt.Color;
 import java.util.*;
 
 public class ImageProcessor {
-    // Cache for color mappings to improve performance when processing multiple textures
     private static final Map<Color, Color> colorMappingCache = new HashMap<>();
 
-    public static BufferedImage processImage(BufferedImage input, List<Color> targetPalette, int contrast, int saturation) {
+    public static BufferedImage processImage(BufferedImage input, List<Color> targetPalette, int contrast, int saturation, int hue) {
         if (targetPalette.isEmpty()) {
-            Repal.LOGGER.info("empty pallette");
+            Repal.LOGGER.info("empty palette");
             return input;
         }
 
@@ -19,6 +18,7 @@ public class ImageProcessor {
         // Pre-process adjustments
         float contrastFactor = (100.0f + contrast) / 100.0f;
         float saturationFactor = (100.0f + saturation) / 100.0f;
+        float hueShift = hue / 100.0f * 360.0f; // Convert -100 to 100 range to -360 to 360 degrees
 
         // Process each pixel
         for (int y = 0; y < input.getHeight(); y++) {
@@ -31,8 +31,8 @@ public class ImageProcessor {
                     continue;
                 }
 
-                // Apply pre-processing
-                Color adjustedColor = adjustColor(inputColor, contrastFactor, saturationFactor);
+                // Apply pre-processing adjustments
+                Color adjustedColor = adjustColor(inputColor, contrastFactor, saturationFactor, hueShift);
 
                 // Find closest palette color
                 Color mappedColor = colorMappingCache.computeIfAbsent(adjustedColor,
@@ -49,12 +49,15 @@ public class ImageProcessor {
                 output.setRGB(x, y, finalColor.getRGB());
             }
         }
-
         return output;
     }
 
-    private static Color adjustColor(Color input, float contrastFactor, float saturationFactor) {
+    private static Color adjustColor(Color input, float contrastFactor, float saturationFactor, float hueShift) {
         float[] hsb = Color.RGBtoHSB(input.getRed(), input.getGreen(), input.getBlue(), null);
+
+        // Adjust hue (normalized to 0-1 range)
+        hsb[0] = (hsb[0] + (hueShift / 360.0f)) % 1.0f;
+        if (hsb[0] < 0) hsb[0] += 1.0f; // Handle negative hue values
 
         // Adjust saturation
         hsb[1] = Math.max(0.0f, Math.min(1.0f, hsb[1] * saturationFactor));
@@ -64,8 +67,7 @@ public class ImageProcessor {
         hsb[2] = Math.max(0.0f, Math.min(1.0f, adjustedBrightness));
 
         // Convert back to RGB
-        int rgb = Color.HSBtoRGB(hsb[0], hsb[1], hsb[2]);
-        return new Color(rgb);
+        return new Color(Color.HSBtoRGB(hsb[0], hsb[1], hsb[2]));
     }
 
     private static Color findClosestPaletteColor(Color input, List<Color> palette) {
@@ -85,11 +87,9 @@ public class ImageProcessor {
 
     private static double calculateColorDistance(Color c1, Color c2) {
         // Using CIE76 color difference formula
-        // Convert RGB to Lab color space for better color comparison
         double[] lab1 = rgbToLab(c1);
         double[] lab2 = rgbToLab(c2);
 
-        // Calculate Euclidean distance in Lab space
         double deltaL = lab1[0] - lab2[0];
         double deltaA = lab1[1] - lab2[1];
         double deltaB = lab1[2] - lab2[2];

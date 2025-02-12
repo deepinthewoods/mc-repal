@@ -185,7 +185,6 @@ public class TextureProcessor {
         try {
             Repal.LOGGER.info("Processing texture group '{}' in layer '{}' with {} textures",
                     suffix.isEmpty() ? "default" : suffix, layer.getName(), textures.size());
-
             for (Identifier id : textures) {
                 try (InputStream stream = resourceManager.getResource(id).get().getInputStream()) {
                     BufferedImage image = ImageIO.read(stream);
@@ -193,7 +192,8 @@ public class TextureProcessor {
                             image,
                             palette,
                             layer.getContrast(),
-                            layer.getSaturation()
+                            layer.getSaturation(),
+                            layer.getHue()  // Added hue parameter
                     );
 
                     // Save processed texture

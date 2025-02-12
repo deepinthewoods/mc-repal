@@ -2,17 +2,14 @@ package ninja.trek.config;
 
 import com.terraformersmc.modmenu.api.ConfigScreenFactory;
 import com.terraformersmc.modmenu.api.ModMenuApi;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Drawable;
 import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.Widget;
 import net.minecraft.text.Text;
 import ninja.trek.LayerInfo;
-import ninja.trek.LayerManager;
 import ninja.trek.TextureProcessor;
 
 public class RepalModMenu implements ModMenuApi {
@@ -32,7 +29,7 @@ public class RepalModMenu implements ModMenuApi {
         // Layout constants
         private static final int SIDE_PANEL_WIDTH = 200;
         private static final int UI_SPACING = 10;
-        private static final int LAYER_UI_HEIGHT = 160;
+        private static final int LAYER_UI_HEIGHT = 100;
         private static final int PROCESSING_UI_HEIGHT = 120;
         private static final int PRESET_UI_Y_OFFSET = 320; // LAYER_UI_HEIGHT + PROCESSING_UI_HEIGHT + spacing
 
@@ -61,7 +58,7 @@ public class RepalModMenu implements ModMenuApi {
 
             // Initialize processing parameter UI below layer UI
             processingUI = new ProcessingParameterUI(this, client, width - SIDE_PANEL_WIDTH, LAYER_UI_HEIGHT + UI_SPACING, SIDE_PANEL_WIDTH);
-            processingUI.init();
+            processingUI.init(texturePreviewUI);
 
 
             // Initialize texture search centered at the top
